@@ -1,0 +1,13 @@
+{
+  "id": "./",
+  "name": "Контур — обследование зданий",
+  "short_name": "Контур",
+  "description": "Карта дефектов и ведомость обследования зданий",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#136f63",
+  "icons": [{"src":"./icon-192.png","sizes":"192x192","type":"image/png"},{"src":"./icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]
+}

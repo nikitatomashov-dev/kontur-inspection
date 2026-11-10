@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#136f63">
+  <meta name="description" content="Полевое обследование: чертежи, карта дефектов и ведомость в одном проекте.">
+  <title>Контур — обследование зданий</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Объект и чертежи">
+      <div class="brand"><div class="brand-icon" data-icon="brand"></div><div><div class="brand-word">контур<span>.</span></div><div class="brand-sub">ОБСЛЕДОВАНИЕ ЗДАНИЙ</div></div></div>
+      <div class="project-card"><div class="eyebrow">ТЕКУЩИЙ ОБЪЕКТ</div><button id="renameProject" class="project-title" title="Изменить название объекта"></button><span class="text-small text-muted" id="projectMeta"></span></div>
+      <button class="btn btn-secondary" id="projectLibrary"><span data-icon="folder"></span>Мои объекты</button>
+      <div class="sidebar-section"><div class="eyebrow">ЧЕРТЕЖИ <span id="drawingCount"></span></div><button class="icon-btn" id="uploadSide" aria-label="Загрузить чертёж" data-icon="plus"></button></div>
+      <div class="drawing-list" id="drawingList"></div>
+      <button class="btn btn-secondary" id="uploadSidebar"><span data-icon="plus"></span>Добавить чертёж / этаж</button>
+      <p class="drawing-add-note" id="drawingSectionNote">Все этажи этого объекта входят в одну ведомость.</p>
+      <div class="sidebar-footer">
+        <button class="btn btn-ghost" id="newProject"><span data-icon="folder"></span>Новый объект</button>
+        <button class="btn btn-ghost" id="exportProject"><span data-icon="download"></span>Скачать проект</button>
+        <button class="btn btn-ghost" id="importProject"><span data-icon="upload"></span>Открыть проект</button>
+        <div class="save-status" id="saveStatus" role="status">Открываем проект…</div>
+        <div class="text-small text-muted">Версия 0.17 · данные на устройстве</div>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div class="page-heading"><div class="title-line"><h1>Работы по объекту</h1><span class="pill">ПРОТОТИП</span></div><p class="subtitle">Обследование и лабораторные исследования в одном объекте</p></div><div class="topbar-actions"><span class="pill" id="connectionStatus">Локальный проект</span><button class="btn btn-secondary" id="helpButton"><span data-icon="help"></span><span>Как работать</span></button></div></header>
+      <nav class="work-sections no-print" aria-label="Разделы работ по объекту">
+        <button class="work-section active" id="surveySection" aria-pressed="true" aria-label="Обследовательские работы"><span class="work-section-icon" data-icon="map"></span><span><strong>Обследовательские работы</strong><span class="work-section-description">Карта, ведомость дефектов и обмеры</span></span></button>
+        <button class="work-section" id="laboratorySection" aria-pressed="false" aria-label="Лабораторные работы"><span class="work-section-icon" data-icon="table"></span><span><strong>Лабораторные работы</strong><span class="work-section-description">Прочности · отрыв и ультразвук</span></span></button>
+      </nav>
+      <nav class="workspace-tabs" id="workspaceTabs" aria-label="Обследовательские работы — вкладки"><button class="tab active" id="mapTab" aria-current="page"><span data-icon="map"></span>Карта дефектов</button><button class="tab" id="registerTab"><span data-icon="table"></span>Ведомость дефектов<span class="tab-count" id="defectCount">0</span></button><button class="tab" id="measureTab" aria-current="false">Обмеры</button><button class="tab hidden" id="strengthTab" aria-current="false">Прочности</button><button class="tab hidden" id="calibrationTab" aria-current="false">Градуировка</button></nav>
+      <div class="workspace-content">
+        <section class="view map-view" id="mapView" aria-label="Карта дефектов">
+          <div class="quick-field-bar"><label for="quickStructure">Быстрое нанесение</label><select id="quickStructure" aria-label="Конструкция для быстрого нанесения"><option value="">Выберите конструкцию</option></select><button class="btn btn-secondary" id="quickToggle" aria-pressed="false">Начать</button><button class="btn btn-secondary" id="draftQueue">Черновики: 0</button><span id="quickStatus" role="status">Тип конструкции обязателен. Остальное можно заполнить позже.</span></div>
+          <div class="mobile-map-header"><button class="btn btn-secondary" id="mobileMapToggle">← Разделы</button><strong>Карта дефектов</strong></div>
+          <div class="map-toolbar"><div class="toolbar-group"><button class="tool-button active" id="selectTool" title="Выбирать отметки и перемещать чертёж"><span data-icon="cursor"></span><span>Выбрать</span></button><button class="tool-button" id="addTool" aria-label="Добавить дефект"><span data-icon="pin"></span><span class="desktop-tool-label">Добавить дефект</span><span class="mobile-tool-label">Точка</span></button><button class="tool-button" id="zoneTool" aria-label="Добавить зону" title="Обведите прямоугольник или укажите два противоположных угла"><span data-icon="zone"></span><span class="desktop-tool-label">Добавить зону</span><span class="mobile-tool-label">Зона</span></button></div><div class="toolbar-group"><button class="icon-btn" id="zoomOut" aria-label="Уменьшить" data-icon="minus"></button><span class="zoom-label" id="zoomLabel">100%</span><button class="icon-btn" id="zoomIn" aria-label="Увеличить" data-icon="plus"></button><button class="tool-button" id="fitView" title="Вписать чертёж в экран"><span data-icon="fit"></span><span>Вписать</span></button><button class="icon-btn" id="exportMap" aria-label="Скачать карту в PNG" title="Скачать карту в PNG" data-icon="download"></button></div></div>
+          <div class="map-layout"><div class="canvas-panel"><div class="canvas-hint"><span id="drawingHeading">Чертёж не выбран</span><span id="modeHint">Выберите отметку, чтобы открыть карточку</span></div><div class="canvas-viewport" id="viewport"><div class="drawing-stage" id="drawingStage"><img class="plan-image" id="planImage" alt="Чертёж объекта" draggable="false"><div class="markers" id="markers"></div></div><div class="canvas-empty hidden" id="canvasEmpty"><span class="empty-symbol" data-icon="map"></span><h2>Начните с чертежа</h2><p>Загрузите план этажа, разрез или фасад.<br>Поддерживаются PDF, JPG и PNG.</p><button class="btn btn-primary" id="uploadEmpty">Загрузить чертёж</button></div></div><div class="map-bottom"><div><div class="legend" id="defectLegend" aria-label="Обозначения дефектов"></div><div class="field-note">Цвет и штриховка обозначают номер дефекта.</div></div><span class="text-small text-muted" id="mapCount"></span></div></div>
+          <aside class="inspector" id="inspector" aria-label="Карточка дефекта"><div class="inspector-head"><div><div class="inspector-kicker">ПОЛЕВАЯ ЗАПИСЬ</div><h2 class="inspector-title" id="inspectorTitle">Карточка дефекта</h2></div><button class="icon-btn hidden" id="closeInspector" aria-label="Закрыть карточку" data-icon="close"></button></div><div class="inspector-empty" id="inspectorEmpty"><span class="empty-symbol" data-icon="pin"></span><h3>У каждого дефекта<br>своё место</h3><p>Нажмите «Добавить дефект», затем укажите точку на чертеже.</p><div class="field-note">Выберите существующую отметку, чтобы уточнить описание, объём или категорию.</div></div>
+            <form id="defectForm" class="hidden">
+              <p class="field-note" id="cardDrawing"></p>
+              <div class="field-note" id="draftNotice"></div><button type="button" class="btn btn-secondary" id="saveFieldDraft">Сохранить черновик</button>
+              <details class="placement-settings" id="placementSettings" open>
+                <summary class="placement-heading">Места нанесения <span class="badge" id="placementCount">1</span></summary>
+                <div class="field"><label for="placementSelect">Выбранное место</label><select id="placementSelect"></select></div>
+                <button class="btn btn-ghost" type="button" id="removePlacement">Убрать это место</button>
+                <div class="field"><label for="placementDrawing">Чертёж для нового места</label><select id="placementDrawing"></select></div>
+                <div class="placement-actions"><button class="btn btn-secondary" type="button" id="addPlacementPoint">Ещё точка</button><button class="btn btn-secondary" type="button" id="addPlacementZone">Ещё зона</button></div>
+                <button class="btn btn-ghost hidden" type="button" id="cancelPlacement">Отменить нанесение</button>
+                <p class="field-note">Все места имеют один номер, общую карточку, фотографии и общий объём. В ведомости будет одна строка.</p>
+              </details>
+              <div class="field-row"><div class="field"><label for="structure">Конструкция / система <span class="required">*</span></label><select id="structure" required></select></div><div class="field"><label for="material">Материал <span class="required">*</span></label><select id="material" required></select></div></div>
+              <p class="field-note structure-group-hint" id="structureGroupHint" aria-live="polite"></p>
+              <div class="field"><label for="template">Типовой дефект</label><select id="template"></select><div class="field-note">Варианты зависят от конструкции и материала.</div></div>
+              <details class="template-reference hidden" id="templateReference">
+                <summary id="referenceSummary">ГОСТ: категория и условия оценки</summary>
+                <div class="reference-content">
+                  <p class="reference-defect" id="referenceDefect"></p>
+                  <p class="reference-category" id="referenceCategory"></p>
+                  <p id="referenceConditions"></p>
+                  <a id="referenceSource" href="https://protect.gost.ru/gost/details/150801aa-be38-4abc-98d6-6f0d0aadb977" target="_blank" rel="noopener noreferrer"></a>
+                  <p class="field-note">Сокращённая справка. Категория в карточке не меняется; её назначает инженер с учётом фактического состояния.</p>
+                </div>
+              </details>
+              <div class="field"><label for="defectTitle">Описание дефекта <span class="required">*</span></label><textarea id="defectTitle" rows="2" required maxlength="500" placeholder="Что обнаружено при обследовании"></textarea></div>
+              <div class="field"><label for="category">Категория технического состояния</label><select id="category"></select><div class="field-note">Назначается инженером для обследуемой конструкции. Автоматически не определяется.</div></div>
+              <div class="field"><label for="cause">Вероятная причина</label><input id="cause" list="causeSuggestions" maxlength="2000" placeholder="Выберите подсказку или введите свою"><datalist id="causeSuggestions"></datalist></div>
+              <div class="field-row"><div class="field"><label for="quantity">Общий объём дефекта</label><input id="quantity" type="number" min="0" max="1000000000000" step="any" inputmode="decimal" placeholder="Не измерен"></div><div class="field"><label for="unit">Единица</label><input id="unit" list="unitSuggestions" maxlength="30" placeholder="м²"><datalist id="unitSuggestions"><option value="м"><option value="м²"><option value="м³"><option value="шт."><option value="%"><option value="мм"></datalist></div></div>
+              <div class="field"><label for="location">Место / оси этой отметки</label><input id="location" maxlength="500" placeholder="Например: ось Б, между 2–3"></div>
+              <div class="field"><label for="note">Примечание и параметры</label><textarea id="note" rows="2" maxlength="10000" placeholder="Раскрытие трещины, длина, результаты измерений…"></textarea></div>
+              <section class="photo-section" aria-label="Фотографии дефекта"><div class="photo-toolbar"><label>Фотографии <span class="photo-count" id="photoCount">0 / 12</span></label><button class="btn btn-secondary" type="button" id="addPhotos"><span data-icon="camera"></span>Добавить фото</button></div><button class="btn btn-ghost" type="button" id="takePhoto">Сделать снимок</button><div class="photo-grid" id="photoGrid"></div><p class="photo-empty" id="photoEmpty">Фото появятся в ведомости и при печати.</p><p class="field-note" id="photoStatus">JPG, PNG, WebP · до 12 фото на дефект</p></section>
+              <div class="form-actions"><button class="btn btn-primary" id="saveDefect" type="submit"><span data-icon="check"></span>Сохранить дефект</button><button class="btn btn-danger hidden" id="deleteDefect" type="button" aria-label="Удалить дефект" data-icon="trash"></button></div><div class="field-note" id="formStatus">Запись появится в ведомости после сохранения.</div>
+            </form>
+          </aside></div>
+          <div class="mobile-draft-bar hidden" id="mobileDraftBar"><span id="mobileDraftStatus">Есть несохранённые изменения</span><button class="btn btn-primary" id="resumeDefect">Параметры дефекта</button></div>
+        </section>
+        <section class="view hidden" id="measureView" aria-label="Обмеры"></section><section class="view hidden" id="calibrationView" aria-label="Градуировка"></section><section class="view hidden" id="strengthView" aria-label="Прочности"></section><section class="view register-view hidden" id="registerView" aria-label="Ведомость дефектов">
+          <div class="register-heading"><div><div class="eyebrow">РЕЗУЛЬТАТЫ ОБСЛЕДОВАНИЯ</div><h2>Ведомость дефектов и повреждений</h2><p class="text-muted" id="registerSubtitle"></p></div><div class="register-actions"><button class="btn btn-primary" id="exportWord"><span data-icon="download"></span>Скачать Word</button><button class="btn btn-secondary" id="printRegister"><span data-icon="print"></span>Печать / PDF</button><button class="btn btn-secondary" id="exportCsv"><span data-icon="download"></span>Экспорт CSV</button></div></div>
+          <div class="stats-grid" id="stats"></div>
+          <p class="register-grouping no-print">Фундаментные → Вертикальные → Горизонтальные конструкции → Лестницы → Инженерные системы по видам</p>
+          <div class="register-filters"><div class="search-field"><span data-icon="search"></span><input id="searchDefects" type="search" aria-label="Поиск дефектов" placeholder="Поиск по дефекту, конструкции, месту…"></div><select id="filterDrawing" aria-label="Фильтр по чертежу"></select><select id="filterCategory" aria-label="Фильтр по категории"></select><span class="text-small text-muted" id="filterCount"></span></div>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Таблица дефектов с прокруткой">
+            <table class="defect-register"><colgroup><col style="width:4.57%"><col style="width:9.67%"><col style="width:29.82%"><col style="width:16.06%"><col style="width:13.58%"><col style="width:14.52%"><col style="width:11.78%"></colgroup><thead><tr id="registerColumnHeaders"></tr><tr class="column-numbers" aria-hidden="true"><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td></tr></thead><tbody id="defectsTable"></tbody></table>
+          </div>
+          <p class="register-footnote">Раздел определяется автоматически по конструкции. Номер записи совпадает с отметкой на чертеже. Объём каждой записи переносится из карточки.</p>
+          <p class="field-note no-print">Категории и причины внесены инженером. Word и печать учитывают фильтры и включают фотографии. CSV содержит все дефекты объекта в том же порядке разделов, с именами и подписями фото; изображения сохраняются в копии проекта.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+  <input id="drawingFile" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" hidden>
+  <input id="projectFile" type="file" accept=".json,application/json" hidden>
+  <input id="photoFiles" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple hidden>
+  <input id="cameraFile" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
+  <dialog id="draftQueueDialog" aria-labelledby="draftQueueTitle"><div class="dialog-head"><h2 id="draftQueueTitle">Заполнить позже</h2><button class="icon-btn" id="closeDraftQueue" aria-label="Закрыть список черновиков">×</button></div><div class="dialog-body"><p>Черновики всех чертежей текущего объекта.</p><div id="draftQueueList"></div></div></dialog>
+  <dialog id="mobileDefectDialog" aria-labelledby="inspectorTitle"><div class="mobile-card-actions" id="mobileCardActions"><p id="mobileCardNotice" class="hidden" role="alert"></p><button class="btn btn-secondary" type="button" id="mobileBackToMap">К карте</button><button class="btn btn-primary" type="submit" form="defectForm" id="mobileSaveDefect">Сохранить</button></div></dialog>
+  <dialog id="photoViewer" class="photo-viewer"><div class="dialog-head"><h2 id="photoViewerTitle">Фотография дефекта</h2><button class="icon-btn" id="closePhotoViewer" aria-label="Закрыть фотографию" data-icon="close"></button></div><div class="dialog-body"><img id="viewerImage" alt="Фотография дефекта"><p class="photo-view-caption" id="viewerCaption"></p></div></dialog>
+  <dialog id="uploadDialog"><form id="uploadForm"><div class="dialog-head"><h2>Добавить чертёж</h2><button class="icon-btn" type="button" id="cancelUpload" aria-label="Закрыть" data-icon="close"></button></div><div class="dialog-body"><p class="text-muted" id="uploadFilename"></p><div class="field"><label for="drawingName">Название чертежа</label><input id="drawingName" required maxlength="200" placeholder="План 1-го этажа"></div><div class="field"><label for="drawingType">Вид чертежа</label><select id="drawingType"><option value="plan">План этажа</option><option value="section">Разрез</option><option value="facade">Фасад</option></select></div><div class="field hidden" id="pdfPageField"><label for="pdfPage">Страница PDF</label><input id="pdfPage" type="number" min="1" value="1" required><span class="field-note" id="pdfPageInfo"></span></div><p class="field-note">Добавляется в текущий объект. Предыдущие этажи и дефекты сохраняются, ведомость и нумерация продолжаются. Каждую страницу PDF можно добавить отдельным чертежом.</p><p id="uploadError" class="form-error" role="alert"></p></div><div class="dialog-actions"><button class="btn btn-primary" id="confirmUpload" type="submit">Добавить чертёж</button></div></form></dialog>
+  <dialog id="projectLibraryDialog"><div class="dialog-head"><h2>Мои объекты</h2><button class="icon-btn" id="closeProjectLibrary" aria-label="Закрыть список объектов" data-icon="close"></button></div><div class="dialog-body"><p class="text-muted">Выберите объект для продолжения работы. Чертежи, фотографии и ведомость каждого объекта сохраняются отдельно на этом устройстве.</p><label class="deleted-toggle"><input type="checkbox" id="showDeletedProjects"> Удалённые объекты</label><div id="projectLibraryList" class="object-list"></div></div></dialog>
+  <dialog id="textDialog"><form id="textForm"><div class="dialog-head"><h2 id="textDialogTitle"></h2></div><div class="dialog-body"><label class="field" for="textDialogInput"><span id="textDialogLabel">Название объекта</span><input id="textDialogInput" maxlength="200" required></label></div><div class="dialog-actions"><button class="btn btn-secondary" id="textCancel" type="button">Отмена</button><button class="btn btn-primary" type="submit">Сохранить</button></div></form></dialog>
+  <dialog id="confirmDialog"><div class="dialog-head"><h2 id="confirmTitle">Подтвердите действие</h2></div><div class="dialog-body"><p id="confirmMessage"></p></div><div class="dialog-actions"><button class="btn btn-secondary" id="confirmNo">Отмена</button><button class="btn btn-primary" id="confirmYes">Продолжить</button></div></dialog>
+  <dialog id="helpDialog"><div class="dialog-head"><h2>От чертежа к ведомости</h2><button class="icon-btn" id="closeHelp" aria-label="Закрыть" data-icon="close"></button></div><div class="dialog-body"><p>В каждом объекте два раздела: <strong>Обследовательские работы</strong> — карта, ведомость дефектов и обмеры; <strong>Лабораторные работы</strong> — прочности. Переключайтесь кнопками над вкладками. Чертежи общие для объекта.</p><ol class="help-steps"><li><strong>Создайте объект.</strong> Задайте название и загрузите план, разрез или фасад в PDF, JPG либо PNG.</li><li><strong>Укажите дефект.</strong> Нажмите «Добавить дефект» и точку на чертеже либо «Добавить зону» и укажите два угла прямоугольника. Зону можно растянуть за углы. Выберите конструкцию и материал — появятся подходящие типовые дефекты.</li><li><strong>Заполните карточку.</strong> Уточните описание, категорию, вероятную причину и объём, прикрепите фотографии. Нажмите «Сохранить дефект».</li><li><strong>Повторите номер.</strong> В карточке выберите чертёж и нажмите «Ещё точка» или «Ещё зона». После нанесения сохраните карточку. Все места одного дефекта имеют одинаковые цвет и штриховку.</li><li><strong>Получите ведомость.</strong> Вторая вкладка собирает все записи в семь столбцов и автоматически распределяет их по разделам: фундаментные, вертикальные, горизонтальные конструкции, лестницы и инженерные системы по видам. Скачайте Word с фотографиями, экспортируйте CSV или отправьте таблицу на печать.</li></ol><p>Справочные признаки ГОСТ 31937-2024 собраны по материалам (приложения В, Г, Д), инженерные системы — по разделам 5.4–5.5. Под выбранным типовым дефектом раскройте справку с категорией и условиями её применимости. Выбор шаблона не меняет категорию в карточке. Текст, причины и единицы можно менять; «Свой дефект» позволяет описать любой случай.</p><p><strong>Обмеры:</strong> создайте эскиз и укажите этаж. «Контур» соединяет углы последовательно, «Перегородка» — две точки. «Размер» связывает два угла с введённым замером. В режиме «Выбор» перетаскивайте углы и подписи. Изменения сохраняются после каждого действия; доступны отмена и повтор. Экспорт — PNG или PDF. Эскиз условный, не в масштабе: числа не перестраивают стены.</p><p><strong>Данные хранятся только в этом браузере.</strong> Скачивайте проект для резервной копии и переноса на другое устройство. Удаление данных браузера удалит и локальный проект.</p><p class="field-note">Для следующего этажа нажмите «Добавить чертёж / этаж». Все дефекты входят в общую ведомость. Размеры по масштабу и произвольные многоугольники — следующие этапы.</p></div></dialog>
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+  <noscript>Для работы приложения включите JavaScript.</noscript>
+</body>
+</html>
+
+

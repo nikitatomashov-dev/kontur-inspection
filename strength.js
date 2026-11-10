@@ -1,0 +1,101 @@
+import { createMobileMap } from './mobile-map.js';
+import { attachTouchMap } from './touch-map.js';
+import { measurementValue } from './strength-model.js';
+import { uid, listStructures } from './domain.js';
+import { ANCHORS, pullStrength } from './calibration-model.js';
+
+export function createStrengthWorkspace({getProject,getDrawingId,setDrawingId,commit,canLeave,confirmAction,askText,upload,notify}) {
+  const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let draft=null,dirty=false,working=false,adding=false,scale=1,mobile,lastFittedDrawing=null;
+  const points=()=>getProject().strengthPoints??[];
+  const drawing=()=>getProject().drawings.find(d=>d.id===getDrawingId());
+  const on=(id,event,fn)=>$(id).addEventListener(event,async e=>{try{await fn(e);}catch(error){if($('mobileStrengthDialog').open)mobile.setError(error.message);notify(error.message,true);}});
+  $('strengthView').innerHTML=`<div class="mobile-map-header"><button class="btn btn-secondary" id="strengthMobileToggle">← Разделы</button><strong>Прочности</strong><button class="btn btn-secondary" id="strengthShowRegister">Ведомость</button></div><div class="register-heading"><div><div class="eyebrow">ИССЛЕДОВАНИЯ КОНСТРУКЦИЙ</div><h2>Прочности</h2><p class="text-muted">Отрыв со скалыванием и ультразвук в одной точке.</p></div><button class="btn btn-primary" id="strengthUpload">Загрузить чертёж</button></div>
+  <div class="strength-toolbar"><label>Чертёж <select id="strengthDrawing" aria-label="Чертёж прочностей"></select></label><button class="btn btn-secondary" id="strengthAdd">Добавить точку</button><button class="btn btn-secondary" id="strengthCancel">Отменить нанесение</button><button class="btn btn-secondary" id="strengthZoomOut" aria-label="Уменьшить план прочностей">−</button><button class="btn btn-secondary" id="strengthZoomIn" aria-label="Увеличить план прочностей">+</button><button class="btn btn-secondary" id="strengthFit">Вписать план</button></div>
+  <div class="strength-floor"><span id="strengthFloorLabel"></span><button type="button" class="btn btn-secondary" id="strengthEditFloor">Подписать этаж</button></div>
+  <p class="field-note" id="strengthHint"></p><div class="strength-layout"><div class="strength-viewport" id="strengthViewport"><div id="strengthEmpty"><p>Загрузите PDF, JPG или PNG либо выберите чертёж объекта.</p><button class="btn btn-primary" id="strengthUploadEmpty">Загрузить чертёж</button></div><div id="strengthStage"><img id="strengthImage" draggable="false" alt=""><div id="strengthMarkers"></div></div></div>
+  <aside class="strength-card" id="strengthCard"><div class="inspector-head"><div><div class="inspector-kicker">ПОЛЕВОЕ ИССЛЕДОВАНИЕ</div><h3 class="inspector-title" id="strengthTitle">Точка исследования</h3></div><button type="button" class="icon-btn hidden" id="strengthClose" aria-label="Закрыть карточку">×</button></div><p id="strengthCardEmpty" class="text-muted">Нажмите «Добавить точку», затем укажите место на плане.</p><form id="strengthForm" class="hidden">
+  <div class="field"><label for="strengthStructure">Тип конструкции</label><select id="strengthStructure">${listStructures({engineering:false}).map(s=>`<option value="${s.id}">${esc(s.label)}</option>`).join('')}</select></div>
+  <div class="field"><label for="strengthLocation">Место / оси</label><input id="strengthLocation" maxlength="500"></div>
+  <h4>Отрыв со скалыванием</h4><div class="field-row"><div class="field"><label for="strengthPull">Значение отрыва</label><input id="strengthPull" inputmode="decimal" placeholder="Например: 28,5"></div><div class="field"><label for="strengthPullUnit">Единица отрыва</label><select id="strengthPullUnit"><option>МПа</option><option>кН</option></select></div></div>
+  <h4>Ультразвуковое исследование</h4><div class="field"><label for="strengthUsUnit">Единица ультразвука</label><select id="strengthUsUnit"><option>м/с</option><option>мкс</option><option>МПа</option></select></div><div id="strengthReadings"></div><button type="button" class="btn btn-secondary" id="strengthMore">Добавить значение УЗ</button><p class="field-note">До 100 значений на точку. Единица общая для всей серии; изменение единицы не пересчитывает числа.</p>
+  <details class="calibration-fields"><summary>Параметры градуировки и расчёта отрыва</summary>
+  <div class="field"><label for="strengthSeries">Серия бетона / условия испытаний</label><input id="strengthSeries" maxlength="500" placeholder="Например: стены, захватка 1"><p class="field-note">Разные составы, приборы, базы или условия объединяйте только при допустимости по ГОСТ 17624. Одинаковая подпись объединяет точки одного типа конструкции.</p></div>
+  <div class="field"><label for="strengthBase">База поверхностного УЗК, мм (для мкс)</label><input id="strengthBase" inputmode="decimal" placeholder="Не менее 120"></div>
+  <p class="field-note">Для отрыва, введённого в кН: R = m₁ · m₂ · P₀ · γ. Для введённых МПа повторный пересчёт не выполняется.</p>
+  <div class="field"><label for="strengthAnchor">Анкер по таблице В.1</label><select id="strengthAnchor"><option value="">Не выбран</option>${ANCHORS.map(a=>`<option value="${a.id}">${a.label}</option>`).join('')}</select></div>
+  <div class="field"><label for="strengthConcrete">Вид бетона</label><select id="strengthConcrete"><option value="">Не выбран</option><option value="heavy">Тяжёлый</option><option value="light">Лёгкий</option></select></div>
+  <div class="field"><label for="strengthAggregate">Максимальная крупность заполнителя, мм</label><input id="strengthAggregate" inputmode="decimal" placeholder="Менее 50 для m₁ = 1"></div>
+  <div class="field"><label for="strengthSlip">Проскальзывание анкера Δh, мм</label><input id="strengthSlip" inputmode="decimal" placeholder="0 — проскальзывания нет"></div>
+  <label class="calibration-confirm"><input type="checkbox" id="strengthStandard">Стандартная схема приложения А соблюдена; отношение размеров вырыва ≤ 2; арматура не обнажена ближе глубины заделки (7.6.4–7.6.5).</label>
+  <p id="strengthConversion" class="field-note" role="status"></p></details>
+  <div class="field"><label for="strengthNote">Примечание к исследованию</label><textarea id="strengthNote" maxlength="10000" rows="2"></textarea></div><p class="field-note">Парные результаты одного участка используются во вкладке «Градуировка» после сохранения точки.</p>
+  <div class="form-actions"><button class="btn btn-primary" type="submit" id="strengthSave">Сохранить точку</button><button class="btn btn-secondary" type="button" id="strengthDelete">Удалить точку</button></div><p id="strengthStatus" class="field-note"></p></form></aside></div>
+  <div class="mobile-draft-bar hidden" id="strengthDraftBar"><span id="strengthDraftStatus"></span><button class="btn btn-primary" id="strengthResume">Параметры точки</button></div><section id="strengthRegister"><h3>Общая ведомость прочностей</h3><p class="field-note">Все чертежи объекта · группировка по типам конструкций. Нажмите номер точки, чтобы открыть её на соответствующем чертеже.</p><div class="table-wrap"><table class="strength-table"><thead><tr><th>Точка</th><th>Этаж</th><th>Чертёж</th><th>Конструкция / место</th><th>Отрыв со скалыванием</th><th>Ультразвук</th></tr></thead><tbody id="strengthRows"></tbody></table></div></section>`;
+  const sheet=document.createElement('dialog');sheet.id='mobileStrengthDialog';sheet.setAttribute('aria-labelledby','strengthTitle');sheet.innerHTML='<div class="mobile-card-actions" id="strengthMobileActions"><p id="strengthMobileNotice" class="hidden" role="alert"></p><button class="btn btn-secondary" type="button" id="strengthBack">К карте</button><button class="btn btn-primary" type="submit" form="strengthForm" id="strengthMobileSave">Сохранить</button></div>';document.body.append(sheet);
+  function reset(){draft=null;dirty=false;adding=false;mobile?.refresh();}
+  function resize(){const d=drawing();if(!d)return;$('strengthStage').style.width=`${d.width*scale}px`;$('strengthStage').style.height=`${d.height*scale}px`;}
+  function fit(){const d=drawing();if(!d)return;scale=Math.max(.03,Math.min(($('strengthViewport').clientWidth-32)/d.width,Math.max(60,$('strengthViewport').clientHeight-32)/d.height,1.5));resize();$('strengthViewport').scrollTo(0,0);}
+  function markers(){const items=points().filter(p=>p.id!==draft?.id);if(draft)items.push(draft);$('strengthMarkers').innerHTML=items.filter(p=>p.drawingId===getDrawingId()).map(p=>`<button type="button" class="strength-marker ${p.id===draft?.id?'selected':''}" data-strength-point="${esc(p.id)}" style="left:${p.x*100}%;top:${p.y*100}%" aria-label="Точка прочности ${p.number}">П${p.number}</button>`).join('');}
+  function readings(){ $('strengthReadings').innerHTML=draft.usText.map((v,i)=>`<div class="strength-reading"><label>Значение УЗ ${i+1}<input inputmode="decimal" data-reading="${i}" value="${esc(v)}" aria-label="Значение УЗ ${i+1}"></label><button type="button" class="btn btn-ghost" data-remove-reading="${i}" aria-label="Убрать значение УЗ ${i+1}">×</button></div>`).join('');$('strengthMore').disabled=draft.usText.length>=100; }
+  function card(){ mobile?.refresh();$('strengthClose').classList.toggle('hidden',!draft); $('strengthForm').classList.toggle('hidden',!draft);$('strengthCardEmpty').classList.toggle('hidden',!!draft);$('strengthTitle').textContent=draft?`Точка П${draft.number}`:'Точка исследования';if(!draft)return;
+    const c=draft.calibration??{};
+    for(const [id,key] of [['strengthSeries','series'],['strengthBase','baseMm'],['strengthAnchor','anchorId'],['strengthConcrete','concrete'],['strengthAggregate','aggregateMm'],['strengthSlip','slipMm']])$(id).value=c[key]??'';
+    $('strengthStandard').checked=c.standard??false;conversion();
+    $('strengthStructure').value=draft.structure;$('strengthLocation').value=draft.location;$('strengthPull').value=draft.pullText;$('strengthPullUnit').value=draft.pullOff.unit;$('strengthUsUnit').value=draft.ultrasound.unit;$('strengthNote').value=draft.note;$('strengthStatus').textContent=dirty?'Есть несохранённые изменения.':'';$('strengthDelete').disabled=!points().some(p=>p.id===draft.id);readings();
+  }
+  function conversion(){const result=pullStrength({...draft,pullOff:{...draft.pullOff,value:Number(String(draft.pullText).replace(',','.'))}});$('strengthConversion').textContent=[result.value===null?'':`R = ${result.value.toLocaleString('ru-RU',{maximumFractionDigits:3})} МПа`,result.error||result.source].filter(Boolean).join(' · ');}
+  function captureCalibration(){const previous=draft.calibration??{};const number=id=>$(id).value.trim()===''?null:Number($(id).value.trim().replace(',','.'));draft.calibration={...previous,series:$('strengthSeries').value.trim(),baseMm:number('strengthBase'),anchorId:$('strengthAnchor').value,concrete:$('strengthConcrete').value,aggregateMm:number('strengthAggregate'),slipMm:number('strengthSlip'),standard:$('strengthStandard').checked};conversion();}
+  function render({refit=false}={}){mobile?.sync();const p=getProject(),d=drawing();$('strengthDrawing').innerHTML=p.drawings.map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('');$('strengthDrawing').value=getDrawingId()??'';$('strengthStage').classList.toggle('hidden',!d);$('strengthEmpty').classList.toggle('hidden',!!d);for(const id of ['strengthAdd','strengthFit','strengthZoomIn','strengthZoomOut'])$(id).disabled=!d;
+    $('strengthFloorLabel').textContent=d?`Этаж: ${d.floor||'не указан'}`:'Выберите чертёж, чтобы подписать этаж.';
+    $('strengthEditFloor').disabled=!d||working;
+    $('strengthEditFloor').textContent=d?.floor?'Изменить этаж':'Подписать этаж';
+    $('strengthCancel').classList.toggle('hidden',!adding);$('strengthHint').textContent=adding?'Укажите место новой точки на плане.':'Чертежи общие для объекта. Точки прочности имеют отдельную нумерацию П1, П2…';$('strengthStage').style.cursor=adding?'crosshair':'default';
+    if(d){if($('strengthImage').getAttribute('src')!==d.imageData)$('strengthImage').src=d.imageData;$('strengthImage').alt=d.name;if(refit||lastFittedDrawing!==d.id){lastFittedDrawing=d.id;requestAnimationFrame(fit);}}$('strengthAdd').setAttribute('aria-pressed',String(adding));if(!adding&&mobile?.mobile)$('strengthHint').textContent='План — одним пальцем, масштаб — двумя. Нажмите точку для правки.';markers();card();
+    const groups=new Map([
+      ['wall',{label:'Стены',points:[]}],
+      ['column',{label:'Колонны / стойки',points:[]}],
+      ['slab',{label:'Плиты перекрытия',points:[]}],
+      ['foundation',{label:'Фундаменты',points:[]}],
+      ['beam',{label:'Балки / ригели',points:[]}],
+      ['roof',{label:'Покрытия / кровли',points:[]}],
+      ['stairs',{label:'Лестницы',points:[]}],
+    ]);
+    const drawings=new Map(p.drawings.map(drawing=>[drawing.id,drawing]));
+    for(const point of [...points()].sort((a,b)=>a.number-b.number)){
+      if(!groups.has(point.structure))groups.set(point.structure,{label:listStructures().find(s=>s.id===point.structure)?.label??'Другие конструкции',points:[]});
+      groups.get(point.structure).points.push(point);
+    }
+    $('strengthRows').innerHTML=[...groups.values()].filter(group=>group.points.length).map(group=>
+      `<tr class="strength-group"><th colspan="6">${esc(group.label)} <span class="strength-group-count">Точек: ${group.points.length}</span></th></tr>`+
+      group.points.map(p=>`<tr><td><button class="btn btn-ghost" data-strength-point="${esc(p.id)}">П${p.number}</button></td><td>${esc(drawings.get(p.drawingId)?.floor||'Не указан')}</td><td>${esc(drawings.get(p.drawingId)?.name)}</td><td>${esc(listStructures().find(s=>s.id===p.structure)?.label)}<br>${esc(p.location)}</td><td>${p.pullOff.value===null?'Не измерен':`${p.pullOff.value} ${esc(p.pullOff.unit)}`}</td><td>${p.ultrasound.values.length?`${p.ultrasound.values.map(v=>String(v).replace('.',',')).join('; ')} ${esc(p.ultrasound.unit)}`:'Нет значений'}</td></tr>`).join('')
+    ).join('')||'<tr><td colspan="6">Точек пока нет.</td></tr>';
+  }
+  function showCard(){if(mobile.mobile){const wasFull=document.body.classList.contains('mobile-strength-full');mobile.enter();if(!wasFull)requestAnimationFrame(fit);}mobile.open();}
+  async function open(id){if(working)return;if(draft?.id===id){showCard();return;}if(!await canLeave())return;const p=points().find(p=>p.id===id);if(!p)return;setDrawingId(p.drawingId);draft={...structuredClone(p),pullText:p.pullOff.value??'',usText:p.ultrasound.values.length?p.ultrasound.values.map(String):['']};dirty=false;adding=false;render();showCard();}
+  on('strengthEditFloor','click',async()=>{
+    if(working||!drawing())return;
+    const drawingId=getDrawingId();
+    const floor=await askText('Этаж чертежа (например: 2-й этаж, подвал)',drawing().floor??'',{required:false});
+    if(floor===null)return;
+    const next=structuredClone(getProject());next.drawings.find(d=>d.id===drawingId).floor=floor;
+    working=true;$('strengthEditFloor').disabled=true;$('strengthForm').inert=true;
+    try{const saved=await commit(next);render();if(saved)notify('Этаж сохранён. Общая ведомость обновлена.');}
+    finally{working=false;$('strengthEditFloor').disabled=!drawing();$('strengthForm').inert=false;}
+  });
+  on('strengthUpload','click',upload);on('strengthUploadEmpty','click',upload);on('strengthDrawing','change',async()=>{if(!await canLeave()){$('strengthDrawing').value=getDrawingId();return;}reset();setDrawingId($('strengthDrawing').value);render();});
+  on('strengthAdd','click',async()=>{if(!await canLeave())return;reset();adding=true;render();});on('strengthCancel','click',()=>{adding=false;render();});
+  on('strengthStage','click',e=>{if(e.target.closest('button')||!adding||!drawing())return;const r=$('strengthStage').getBoundingClientRect();draft={id:uid(),number:points().reduce((n,p)=>Math.max(n,p.number),0)+1,drawingId:getDrawingId(),x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)),structure:'wall',location:'',note:'',pullOff:{value:null,unit:'МПа'},ultrasound:{unit:'м/с',values:[]},pullText:'',usText:['']};dirty=true;adding=false;render();showCard();});
+  for(const id of ['strengthMarkers','strengthRows'])on(id,'click',e=>{const b=e.target.closest('[data-strength-point]');if(b)return open(b.dataset.strengthPoint);});
+  function capture(){if(!draft)return;draft.structure=$('strengthStructure').value;draft.location=$('strengthLocation').value;draft.note=$('strengthNote').value;draft.pullText=$('strengthPull').value;draft.pullOff.unit=$('strengthPullUnit').value;draft.ultrasound.unit=$('strengthUsUnit').value;draft.usText=[...$('strengthReadings').querySelectorAll('input')].map(i=>i.value);captureCalibration();}
+  on('strengthForm','input',()=>{capture();dirty=true;mobile.refresh();$('strengthStatus').textContent='Есть несохранённые изменения.';});
+  on('strengthMore','click',()=>{if(draft.usText.length>=100)return;draft.usText.push('');dirty=true;mobile.refresh();readings();const inputs=$('strengthReadings').querySelectorAll('input');inputs[inputs.length-1]?.focus();});on('strengthReadings','click',e=>{const b=e.target.closest('[data-remove-reading]');if(b){draft.usText.splice(Number(b.dataset.removeReading),1);dirty=true;mobile.refresh();readings();}});
+  on('strengthForm','submit',async e=>{e.preventDefault();if(working||!draft)return;mobile.setError('');capture();const {pullText,usText,...record}=structuredClone(draft);record.pullOff.value=measurementValue(pullText);record.ultrasound.values=usText.map(measurementValue).filter(v=>v!==null);const next=structuredClone(getProject());next.strengthPoints=[...(next.strengthPoints??[]).filter(p=>p.id!==record.id),record];working=true;mobile.setBusy(true);$('strengthForm').inert=true;try{const saved=await commit(next);dirty=false;render();$('strengthStatus').textContent=saved?'Точка сохранена.':'Точка только в памяти — скачайте проект.';if(saved){notify('Результаты исследования сохранены.');if(mobile.mobile)mobile.close();}else mobile.setError('Не удалось записать на устройстве. Вернитесь к разделам и скачайте проект.');}finally{working=false;mobile.setBusy(false);$('strengthForm').inert=false;$('strengthEditFloor').disabled=!drawing();}});
+  on('strengthDelete','click',async()=>{if(!draft||working||!await confirmAction(`Удалить точку П${draft.number} и все её измерения?`,'Удалить точку'))return;const next=structuredClone(getProject());next.strengthPoints=points().filter(p=>p.id!==draft.id);working=true;try{await commit(next);reset();render();}finally{working=false;}});
+  on('strengthFit','click',fit);on('strengthZoomIn','click',()=>{scale=Math.min(4,scale*1.25);resize();});on('strengthZoomOut','click',()=>{scale=Math.max(.03,scale/1.25);resize();});
+  mobile=createMobileMap({getDraft:()=>draft,isDirty:()=>dirty,capture,isMap:()=>!$('strengthView').classList.contains('hidden'),fit,bodyClass:'mobile-strength-full',savedLabel:'Точка сохранена',resumeLabel:'Параметры П',ids:{inspector:'strengthCard',mobileDefectDialog:'mobileStrengthDialog',mobileCardActions:'strengthMobileActions',mobileCardNotice:'strengthMobileNotice',mobileDraftBar:'strengthDraftBar',resumeDefect:'strengthResume',mobileDraftStatus:'strengthDraftStatus',closeInspector:'strengthClose',defectForm:'strengthForm',mobileMapToggle:'strengthMobileToggle',mobileBackToMap:'strengthBack',mobileSaveDefect:'strengthMobileSave',placementSettings:'unusedStrengthPlacement'}});
+  attachTouchMap({viewport:$('strengthViewport'),stage:$('strengthStage'),getMode:()=>adding?'add':'select',getScale:()=>scale,setScale:value=>{scale=value;resize();},cancelZone:()=>{}});
+  on('strengthClose','click',async()=>{if(mobile.mobile)mobile.close();else if(await canLeave()){reset();render();}});
+  on('strengthShowRegister','click',()=>{mobile.close();mobile.leave();$('strengthRegister').scrollIntoView({behavior:'smooth',block:'start'});});
+  return {render,reset,fit,open,syncMobile:()=>mobile.sync(),enter:()=>{mobile.enter();render({refit:true});},get dirty(){return dirty;},get busy(){return working;}};
+}
