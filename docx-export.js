@@ -79,7 +79,7 @@ function crc32(bytes) {
 }
 
 // Store-only ZIP uses standard Office Open Packaging Conventions without a CDN/library.
-function zip(files) {
+export function zip(files) {
   if (files.length > 65535) throw new Error('Слишком много фотографий для одного документа Word. Разделите ведомость фильтрами.');
   const content = [], directory = [];
   let offset = 0, directorySize = 0;

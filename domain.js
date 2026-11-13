@@ -273,6 +273,7 @@ export function validateProject(project) {
     if (!STRUCTURES.some(item => item.id === defect.structure)) issue(`${prefix}неизвестный тип конструкции.`);
     if (!getMaterials(defect.structure).some(item => item.id === defect.material)) issue(`${prefix}материал не соответствует типу конструкции.`);
     if (!str(defect.templateId, 100)) issue(`${prefix}некорректный идентификатор шаблона.`);
+    if (defect.construction !== undefined && !str(defect.construction,200)) issue(`${prefix}некорректная марка конструкции.`);
     if (defect.workflow !== undefined && !['draft','complete'].includes(defect.workflow)) issue(`${prefix}неизвестный статус заполнения.`);
     if (!str(defect.title, 500, defect.workflow !== 'draft')) issue(`${prefix}заполненная карточка должна иметь описание до 500 символов.`);
     if (!CATEGORIES.some(item => item.id === defect.category)) issue(`${prefix}неизвестная категория технического состояния.`);

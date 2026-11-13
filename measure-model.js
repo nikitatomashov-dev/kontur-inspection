@@ -14,6 +14,9 @@ export function validateSketches(sketches) {
   for(const s of sketches){
     if(!obj(s)){errors.push('Обмеры: неверная запись эскиза.');continue;}
     if(!str(s.id,100,true)||ids.has(s.id))errors.push('Обмеры: неверный или повторный номер эскиза.');ids.add(s.id);
+    if(s.construction!==undefined&&!str(s.construction,200))errors.push('Обмеры: неверная марка конструкции.');
+    if(s.drawingId!==undefined&&!str(s.drawingId,100))errors.push('Обмеры: неверный чертёж связи.');
+    if(s.structure!==undefined&&!['wall','column','slab','foundation','beam','roof','stairs'].includes(s.structure))errors.push('Обмеры: неверный тип конструкции.');
     if(!str(s.name,200,true)||!str(s.floor,200))errors.push('Обмеры: неверное название или этаж.');
     if(![['nodes',2000],['edges',4000],['dimensions',2000],['labels',500]].every(([k,n])=>Array.isArray(s[k])&&s[k].length<=n)){errors.push('Обмеры: неверный состав или слишком много элементов.');continue;}
     if(s.brushes!==undefined&&(!Array.isArray(s.brushes)||s.brushes.length>10000)){errors.push('Обмеры: неверный список штрихов кисти.');continue;}
@@ -25,7 +28,7 @@ export function validateSketches(sketches) {
     }
     for(const n of s.nodes){if(!xy(n))errors.push('Обмеры: угол вне листа.');if(obj(n))nodes.set(n.id,n);}
     const links=v=>obj(v)&&nodes.has(v.a)&&nodes.has(v.b)&&v.a!==v.b&&Math.hypot(nodes.get(v.a).x-nodes.get(v.b).x,nodes.get(v.a).y-nodes.get(v.b).y)>.01;
-    for(const e of s.edges)if(!links(e)||!['wall','partition'].includes(e.kind))errors.push('Обмеры: неверная стена или её углы.');
+    for(const e of s.edges)if(!links(e)||!['wall','partition','door','window'].includes(e.kind))errors.push('Обмеры: неверная стена или её углы.');
     for(const e of s.edges){
       if(!obj(e))continue;
       if(e.shape!==undefined&&!['line','arc','free'].includes(e.shape))errors.push('Обмеры: неизвестный тип линии.');
@@ -65,7 +68,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 export function sketchSvg(sketch,{editing=false,grid=false,selected=null,chain=null,projectName='',view={x:0,y:0,width:1000,height:700}}={}){
   const selectedId=selected?.id, node=id=>sketch.nodes.find(n=>n.id===id);
   const attrs=(kind,item,label)=>editing?`data-kind="${kind}" data-id="${esc(item.id)}" role="button" tabindex="0" aria-label="${esc(label)}"`:'';
-  const walls=sketch.edges.map(e=>{const a=node(e.a),b=node(e.b),d=strokePath(a,b,e);return `<g ${attrs('edges',e,e.shape==='arc'?'Дуга':e.shape==='free'?'Свободная линия':e.kind==='wall'?'Стена':'Перегородка')}><path d="${d}" fill="none" stroke="${selectedId===e.id?'#de7c30':'#344f55'}" stroke-width="${e.kind==='wall'?8:4}" stroke-linecap="round"/>${editing?`<path d="${d}" fill="none" stroke="transparent" stroke-width="20" vector-effect="non-scaling-stroke"/>`:''}</g>`;}).join('');
+  const walls=sketch.edges.map(e=>{const a=node(e.a),b=node(e.b),d=strokePath(a,b,e);if(['door','window'].includes(e.kind)){const L=Math.hypot(b.x-a.x,b.y-a.y),angle=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;return `<g ${attrs('edges',e,e.kind==='door'?'Дверь':'Окно')} transform="translate(${a.x} ${a.y}) rotate(${angle})" stroke="${selectedId===e.id?'#de7c30':'#28625c'}" fill="none" stroke-width="3"><path d="M0 0H${L}" stroke="white" stroke-width="14"/>${e.kind==='door'?`<path d="M0 0V${-L}M0 ${-L}A${L} ${L} 0 0 1 ${L} 0"/>`:`<path d="M0 -5H${L}M0 0H${L}M0 5H${L}M0 -8V8M${L} -8V8"/>`}<path d="M0 0H${L}" stroke="transparent" stroke-width="24" vector-effect="non-scaling-stroke"/></g>`;}return `<g ${attrs('edges',e,e.shape==='arc'?'Дуга':e.shape==='free'?'Свободная линия':e.kind==='wall'?'Стена':'Перегородка')}><path d="${d}" fill="none" stroke="${selectedId===e.id?'#de7c30':'#344f55'}" stroke-width="${e.kind==='wall'?8:4}" stroke-linecap="round"/>${editing?`<path d="${d}" fill="none" stroke="transparent" stroke-width="20" vector-effect="non-scaling-stroke"/>`:''}</g>`;}).join('');
   const dimensions=sketch.dimensions.map(d=>{const {a,b,start:c,end:f}=dimensionGeometry(sketch,d),mx=(c.x+f.x)/2,my=(c.y+f.y)/2,label=`${String(d.value).replace('.',',')} ${d.unit}`;return `<g ${attrs('dimensions',d,'Размер '+label)} stroke="${selectedId===d.id?'#de7c30':'#39736c'}" stroke-width="1.6"><path d="M${a.x} ${a.y}L${c.x} ${c.y}M${b.x} ${b.y}L${f.x} ${f.y}M${c.x} ${c.y}L${f.x} ${f.y}" fill="none"/><path d="M${c.x-5} ${c.y+5}l10 -10M${f.x-5} ${f.y+5}l10 -10"/><rect x="${mx-label.length*4.9-7}" y="${my-13}" width="${label.length*9.8+14}" height="26" fill="white" stroke="none"/><text x="${mx}" y="${my+5}" text-anchor="middle" fill="${selectedId===d.id?'#b75816':'#285a54'}" stroke="none" font-size="17">${esc(label)}</text></g>`;}).join('');
   const labels=sketch.labels.map(l=>`<g ${attrs('labels',l,'Подпись '+l.text)}><text x="${l.x}" y="${l.y}" fill="${selectedId===l.id?'#b75816':'#344f55'}" font-size="18" paint-order="stroke" stroke="white" stroke-width="4">${l.text.split('\n').map((line,i)=>`<tspan x="${l.x}" dy="${i?'1.3em':'0'}">${esc(line)}</tspan>`).join('')}</text></g>`).join('');
   const nodes=editing?sketch.nodes.map((n,i)=>`<g ${attrs('nodes',n,`Угол ${i+1}`)}><circle cx="${n.x}" cy="${n.y}" r="10" fill="transparent" stroke="transparent" stroke-width="36" vector-effect="non-scaling-stroke"/><circle cx="${n.x}" cy="${n.y}" r="8" fill="${selectedId===n.id||chain===n.id?'#e4934c':'white'}" stroke="#136f63" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/></g>`).join(''):'';
@@ -73,6 +76,6 @@ export function sketchSvg(sketch,{editing=false,grid=false,selected=null,chain=n
   const header=editing?'':`<text x="30" y="30" font-size="18" fill="#344f55">${esc(projectName.slice(0,80))}</text><text x="30" y="57" font-size="18" fill="#344f55">${esc((sketch.name+(sketch.floor?' · Этаж: '+sketch.floor:'')).slice(0,90))}</text>`;
   const bounds=contentBounds(sketch),factor=Math.min(1000/bounds.width,700/bounds.height),tx=(1000-bounds.width*factor)/2-bounds.x*factor,ty=(700-bounds.height*factor)/2-bounds.y*factor;
   const paint=(sketch.brushes??[]).map(b=>`<path ${attrs('brushes',b,'Штрих кисти')} d="${brushPath(b.points)}" fill="none" stroke="${b.color}" stroke-width="${b.width}" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
-  const art=walls+paint+dimensions+labels+nodes;
+  const art=walls+paint+'<g class="dimension-layer">'+dimensions+'</g>'+labels+nodes;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${editing?view.x+' '+view.y+' '+view.width+' '+view.height:'-65 -90 1130 850'}" width="${editing?view.width:2260}" height="${editing?view.height:1700}" style="font-family:Arial,sans-serif;user-select:none"><rect x="${editing?view.x:-65}" y="${editing?view.y:-90}" width="${editing?view.width:1130}" height="${editing?view.height:850}" fill="white"/>${editing?'':`<g transform="translate(-40,-85)">${header}</g>`}${gridSvg}${editing?art:`<g transform="translate(${tx} ${ty}) scale(${factor})">${art}</g>`}${editing?'':'<text x="-35" y="735" font-size="16" fill="#5c6e73">Обмерный эскиз. Не в масштабе. Размеры внесены по результатам замеров.</text>'}</svg>`;
 }

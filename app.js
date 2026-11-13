@@ -1,3 +1,7 @@
+import {createHomeSync} from './home-sync.js';
+import {createFieldHub} from './field-hub.js';
+import {repeatDefect} from './field-model.js';
+import {exportBundle} from './report-bundle.js';
 import { createMeasureWorkspace } from './measure.js';
 import { createQuickCapture } from './quick-capture.js';
 import { defectDescription } from './domain.js';
@@ -34,6 +38,7 @@ document.querySelectorAll('[data-icon]').forEach(element => { element.innerHTML 
 const options = (items, selected) => items.map(item => `<option value="${escapeHtml(item.id)}"${item.id === selected ? ' selected' : ''}>${escapeHtml(item.label ?? item.title)}</option>`).join('');
 let project, activeDrawingId, selectedId = null, draft = null, dirty = false, scale = 1, mode = 'select', activeTab = 'map';
 let persistent = true, storageWriteBlocked = false, uploadFile = null, pdfSession = null, toastTimer, dragging = false, busy = false;
+let repeatSource=null,homeSync;
 let photoBusy = false, zoneEditor, activePlacementId = null, addingPlacement = false;
 let strengthWorkspace, calibrationWorkspace, measureWorkspace, mobileMap, quickCapture, lastSurveyTab = 'map';
 const activePlacement = () => draft?.placements.find(p => p.id === activePlacementId);
@@ -67,7 +72,7 @@ function confirmAction(message, title = 'Подтвердите действие
   });
 }
 async function canLeave() {
-  if(photoBusy || busy || strengthWorkspace?.busy || calibrationWorkspace?.busy || measureWorkspace?.busy) { notify('Дождитесь окончания обработки и сохранения.'); return false; }
+  if(homeSync?.busy || photoBusy || busy || strengthWorkspace?.busy || calibrationWorkspace?.busy || measureWorkspace?.busy) { notify('Дождитесь окончания обработки и сохранения.'); return false; }
   return (!dirty && !strengthWorkspace?.dirty) || await confirmAction('В карточке есть несохранённые изменения. Отменить их?', 'Карточка не сохранена');
 }
 function askText(title, value = '', {required = true} = {}) {
@@ -83,7 +88,7 @@ function setMode(nextMode) {
   if(nextMode==='select')quickCapture?.stop();
   if(mode !== nextMode) zoneEditor?.cancel();
   mode = nextMode;
-  if(mode === 'select') addingPlacement = false;
+  if(mode === 'select') {addingPlacement = false;repeatSource=null;}
   for(const [id,value] of [['addTool','add'],['zoneTool','zone'],['selectTool','select']]) { $(id).classList.toggle('active',mode===value); $(id).setAttribute('aria-pressed',String(mode===value)); }
   $('drawingStage').dataset.mode = mode;
   $('drawingStage').style.cursor = mode === 'select' ? 'grab' : 'crosshair';
@@ -149,6 +154,7 @@ function renderMarkers() {
   $('defectLegend').innerHTML = visible.sort((a,b)=>a.number-b.number).map(d=>`<button class="defect-legend-item" type="button" data-legend-defect="${escapeHtml(d.id)}" title="${escapeHtml(d.title)}"><span class="appearance-swatch" style="${getAppearanceStyle(d.number)}"></span>№ ${d.number}${d.workflow==='draft'?' · черновик':''}</button>`).join('');
 }
 function captureDraftFields() {
+  if(draft)draft.construction=$('constructionCode').value.trim();
   if(!draft) return;
   Object.assign(draft,{structure:$('structure').value,material:$('material').value,templateId:$('template').value,title:$('defectTitle').value.trim(),category:$('category').value,cause:$('cause').value.trim(),quantity:$('quantity').value===''?null:Number($('quantity').value),unit:$('unit').value.trim(),note:$('note').value.trim()});
   if(activePlacement()) activePlacement().location = $('location').value.trim();
@@ -190,7 +196,7 @@ async function addPhotoFiles(files) {
   const ownerId=draft.id; photoBusy=true;renderPhotos();$('photoStatus').textContent='Обрабатываем фотографии…';
   try {
     const prepared=[];
-    for(const file of files)prepared.push(await preparePhoto(file));
+    for(const file of files){const photo=await preparePhoto(file);photo.caption=$('photoRole').value;prepared.push(photo);}
     if(draft?.id!==ownerId)return;
     const nextPhotos=[...(draft.photos??[]),...prepared];
     const candidate=structuredClone(project);const index=candidate.defects.findIndex(d=>d.id===ownerId);
@@ -230,7 +236,7 @@ function renderCard() {
   $('draftNotice').textContent=draft.workflow==='draft'?'Черновик: описание, фото и измерения можно заполнить позже. Обычное сохранение завершает карточку.':'';
   $('cardDrawing').textContent=`${activeDrawing()?.name ?? ''} · ${activePlacement()?.zone?'Зона':'Точечная отметка'} · всего мест: ${draft.placements.length}`;
   renderPlacements();
-  renderPhotos();$('photoStatus').textContent='JPG, PNG, WebP · до 12 фото на дефект';
+  $('constructionCode').value=draft.construction??'';renderPhotos();$('photoStatus').textContent='JPG, PNG, WebP · до 12 фото на дефект';
   const structural = listStructures({ engineering: false });
   const systems = listStructures().filter(item => !structural.some(s => s.id === item.id));
   $('structure').innerHTML = `<optgroup label="Строительные конструкции">${options(structural, draft.structure)}</optgroup><optgroup label="Инженерные системы · ГОСТ 31937-2024">${options(systems, draft.structure)}</optgroup>`;
@@ -345,8 +351,8 @@ on('surveySection','click',()=>switchTab(lastSurveyTab));
 on('calibrationTab','click',()=>switchTab('calibration'));
 on('laboratorySection','click',()=>switchTab('strength'));
 for (const id of ['uploadSide','uploadSidebar','uploadEmpty']) on(id,'click',chooseUpload);
-on('addTool','click',async()=>{if (!await canLeave()) return; resetCard(); setMode('add');});
-on('zoneTool','click',async()=>{if (!await canLeave()) return; resetCard(); setMode('zone');});
+on('addTool','click',async()=>{repeatSource=null;if (!await canLeave()) return; resetCard(); setMode('add');});
+on('zoneTool','click',async()=>{repeatSource=null;if (!await canLeave()) return; resetCard(); setMode('zone');});
 on('selectTool','click',async()=>{if (!await canLeave()) return; resetCard(); setMode('select');});
 on('fitView','click',fitDrawing); on('zoomIn','click',()=>zoom(1.25)); on('zoomOut','click',()=>zoom(.8));
 on('closeInspector','click',async()=>{if(mobileMap.mobile) mobileMap.close(); else if(await canLeave()) resetCard();});
@@ -361,6 +367,7 @@ function beginDefect(point,zone=null) {
     draft.placements.push(placement);
   } else {
     selectedId=null;draft={id:uid(),number:nextDefectNumber(project),placements:[placement],photos:[],structure:'wall',material:'masonry',templateId:'',title:'',category:'not_assessed',cause:'',quantity:null,unit:'м²',note:'',createdAt:now,updatedAt:now};
+    if(repeatSource){draft=repeatDefect(project,repeatSource,activeDrawingId,point,zone);draft.placements=[placement];repeatSource=null;}
   }
   activePlacementId=placement.id;dirty=true;setMode('select');renderCard();renderMarkers();
   mobileMap.open();
@@ -541,7 +548,7 @@ on('projectFile','change',async()=>{
   const validation=validateProject(data);if(!validation.valid)throw new Error(validation.errors.slice(0,3).join(' '));
   data=upgradeProject(data);
   for(const drawing of data.drawings){try{const image=new Image();image.src=drawing.imageData;await image.decode();if(image.naturalWidth!==drawing.width||image.naturalHeight!==drawing.height)throw new Error();}catch{throw new Error(`Повреждено изображение «${drawing.name}». Текущий объект сохранён.`);}}
-  await verifyPhotoImages(data.defects.flatMap(d=>d.photos));
+  await verifyPhotoImages([...data.defects.flatMap(d=>d.photos??[]),...(data.strengthPoints??[]).flatMap(p=>p.photos??[])]);
   if((await listProjects(true)).some(item=>item.id===data.id)){data.id=uid();data.name=`${data.name.slice(0,180)} (копия)`;}
   await activateObject(data);notify('Проект добавлен в «Мои объекты». Другие объекты сохранены.');
 });
@@ -619,3 +626,19 @@ strengthWorkspace=createStrengthWorkspace({getProject:()=>project,getDrawingId:(
 calibrationWorkspace=createCalibrationWorkspace({getProject:()=>project,commit,askText,notify,openPoint:async id=>{if(await switchTab('strength'))await strengthWorkspace.open(id);}});
 quickCapture=createQuickCapture({getProject:()=>project,getDrawingId:()=>activeDrawingId,isBusy:()=>busy||photoBusy,setBusy:value=>{busy=value;},commit,isPersistent:()=>persistent,canLeave,resetCard,setMode,renderAll,openDefect,notify});
 init();
+
+const fieldHub=createFieldHub({openMeasure:async id=>{if(await switchTab('measure'))measureWorkspace.open(id);},getProject:()=>project,canLeave,openDefect,openStrength:async id=>{if(await switchTab('strength'))await strengthWorkspace.open(id);},download,notify,report:async()=>{await exportBundle(project,download);},restore:async p=>{if(!await canLeave())return;const next=upgradeProject(p);next.id=uid();next.name+=' · восстановленная копия';await commit(next);resetCard();strengthWorkspace.reset();activeDrawingId=project.drawings[0]?.id;renderAll(true);}});
+on('fieldHub','click',()=>fieldHub.open());on('fieldHubMobile','click',()=>fieldHub.open());
+on('repeatLast','click',async()=>{
+ if(!await canLeave()||!activeDrawingId)return;
+ const source=project.defects.find(d=>d.id===selectedId)??[...project.defects].sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
+ if(!source){notify('Сначала сохраните хотя бы один дефект.');return;}
+ const dialog=document.createElement('dialog');dialog.innerHTML='<div class="dialog-head"><h2>Повторить дефект № '+source.number+'</h2></div><div class="dialog-body"><p>Новый номер копирует тип, материал и описание. Фото, объём и категория заполняются заново.</p><button class="btn btn-primary" data-new>Новый номер</button> <button class="btn btn-secondary" data-place>Ещё место под тем же номером</button> <button class="btn btn-ghost" data-cancel>Отмена</button></div>';document.body.append(dialog);dialog.showModal();
+ dialog.addEventListener('close',()=>dialog.remove());
+ dialog.addEventListener('click',async e=>{if(e.target.closest('[data-cancel]'))dialog.close();if(e.target.closest('[data-new]')){dialog.close();quickCapture.stop();resetCard();repeatSource=structuredClone(source);setMode('add');$('modeHint').textContent='Укажите новое место: параметры будут скопированы из № '+source.number;}if(e.target.closest('[data-place]')){dialog.close();await openDefect(source.id);$('placementDrawing').value=activeDrawingId;$('addPlacementPoint').click();}});
+});
+
+homeSync=createHomeSync({connectRemote:async source=>{if(!await canLeave())return false;if(await loadProject(source.id))throw new Error('Объект с таким ID уже есть на устройстве. Откройте его через «Мои объекты» и выполните синхронизацию; при конфликте загрузите отдельную копию.');const next=upgradeProject(source);await commit(next);if(!persistent)return false;resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;renderAll(true);return true;},getProject:()=>project,canLeave,isBusy:()=>busy||photoBusy||dirty||!!strengthWorkspace?.dirty||!!strengthWorkspace?.busy||!!measureWorkspace?.busy,notify,
+ applyRemote:async source=>{busy=true;try{const next=upgradeProject(source);await commit(next);if(!persistent)throw new Error('Серверная версия не сохранена локально. Скачайте проект.');resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;measureWorkspace.reload();renderAll(true);}finally{busy=false;}},
+ importCopy:async source=>{if(!await canLeave())return;const next=upgradeProject(source);next.id=uid();next.name+=' · с сервера';await commit(next);resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;renderAll(true);}
+});

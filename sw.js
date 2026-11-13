@@ -1,5 +1,5 @@
-const CACHE = 'kontur-app-v26';
-const CORE = ['./','./index.html','./styles.css','./app.js','./measure.js','./measure-paint.js','./measure-space.js','./measure-navigation.js','./measure-stroke.js','./measure-model.js','./measure-export.js','./quick-capture.js','./mobile-map.js','./touch-map.js','./domain.js','./reference-catalog.js','./strength.js','./strength-model.js','./calibration.js','./calibration-model.js','./appearance.js','./docx-export.js','./geometry.js','./zone-editor.js','./photos.js','./storage.js','./pdf-import.js','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
+const CACHE = 'kontur-app-v27';
+const CORE = ['./home-sync.js','./field-model.js','./field-hub.js','./report-bundle.js','./measure-edit.js','./','./index.html','./styles.css','./app.js','./measure.js','./measure-paint.js','./measure-space.js','./measure-navigation.js','./measure-stroke.js','./measure-model.js','./measure-export.js','./quick-capture.js','./mobile-map.js','./touch-map.js','./domain.js','./reference-catalog.js','./strength.js','./strength-model.js','./calibration.js','./calibration-model.js','./appearance.js','./docx-export.js','./geometry.js','./zone-editor.js','./photos.js','./storage.js','./pdf-import.js','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);

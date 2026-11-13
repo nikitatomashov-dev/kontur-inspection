@@ -1,7 +1,7 @@
 // Move the existing form, keeping its values and listeners intact at breakpoints.
 export function createMobileMap({ getDraft, isDirty, capture, isMap, fit, ids = {}, bodyClass = 'mobile-map-full', savedLabel = 'Дефект сохранён', resumeLabel = 'Параметры №' }) {
   const $ = id => document.getElementById(ids[id] ?? id);
-  const media = matchMedia('(max-width: 700px)');
+  const media = matchMedia('(max-width: 700px), (max-height: 500px) and (pointer: coarse)');
   const inspector = $('inspector'), home = inspector.parentElement;
   const dialog = $('mobileDefectDialog');
   let full = true;

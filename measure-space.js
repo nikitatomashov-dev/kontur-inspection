@@ -16,6 +16,7 @@ export function contentBounds(sketch){
   const nodes=new Map(sketch.nodes.map(n=>[n.id,n]));
   for(const n of sketch.nodes)add(n.x,n.y);
   for(const e of sketch.edges){const a=nodes.get(e.a),b=nodes.get(e.b),dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy);
+    if(e.kind==='door'){add(a.x+dy,a.y-dx);add(b.x+dy,b.y-dx);}
     if(e.shape==='free')for(const p of e.stroke)add(a.x+p.u*dx-p.v*dy,a.y+p.u*dy+p.v*dx);
     if(e.shape==='arc'){
       const q=e.bulge,r=L*(.25+q*q)/(2*Math.abs(q)),h=L*q-Math.sign(q)*r;

@@ -52,7 +52,7 @@ export async function listProjects(includeDeleted = false) {
     r.onerror = () => reject(r.error);
   });
 }
-export async function storeProject(project) {
+export async function storeProject(project, withSnapshot=true) {
   const db = await library();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction('workspace', 'readwrite');
@@ -62,12 +62,22 @@ export async function storeProject(project) {
       if ((request.result ?? []).some(item => item.id === project.id && item.deleted)) { transaction.abort(); return; }
       const items = (request.result ?? []).filter(item => item.id !== project.id);
       store.put([...items, summary(project)], 'catalog');
+      const old=store.get(`project:${project.id}`), history=store.get(`snapshots:${project.id}`);
+      history.onsuccess=()=>{
+        const entries=history.result??[], now=Date.now();
+        if(withSnapshot && old.result && (!entries.length || now-entries[0].time>=300000)){
+          const key=`snapshot:${project.id}:${now}`;
+          store.put(old.result,key);entries.unshift({key,time:now});
+          for(const stale of entries.splice(3))store.delete(stale.key);
+          store.put(entries,`snapshots:${project.id}`);
+        }
+      };
       store.put(project, `project:${project.id}`);
       store.put(project.id, 'activeProjectId');
     };
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error ?? new Error('Сохранение прервано.'));
+    transaction.onerror = () => {};
+    transaction.onabort = () => {if(withSnapshot&&transaction.error?.name==='QuotaExceededError')storeProject(project,false).then(resolve,reject);else reject(transaction.error ?? new Error('Сохранение прервано.'));};
   });
 }
 
@@ -103,3 +113,6 @@ export async function restoreProject(id) {
     tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error ?? new Error('Не удалось восстановить объект.'));
   });
 }
+
+export async function listSnapshots(id){const db=await library();return new Promise((resolve,reject)=>{const r=db.transaction('workspace').objectStore('workspace').get(`snapshots:${id}`);r.onsuccess=()=>resolve(r.result??[]);r.onerror=()=>reject(r.error);});}
+export async function loadSnapshot(key){if(!key.startsWith('snapshot:'))throw new Error('Неверный ключ копии.');const db=await library();return new Promise((resolve,reject)=>{const r=db.transaction('workspace').objectStore('workspace').get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}

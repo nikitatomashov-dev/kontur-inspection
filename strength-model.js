@@ -14,6 +14,14 @@ export function validateStrengthPoints(points, drawings, structures) {
   for(const p of points){
     if(!p||typeof p!=='object'){errors.push('Некорректная точка прочности.');continue;}
     errors.push(...validateCalibration(p.calibration));
+    if(p.photos!==undefined){
+      if(!Array.isArray(p.photos)||p.photos.length>12)errors.push('До 12 фото на точку прочности.');
+      else{const photoIds=new Set();for(const photo of p.photos){
+        if(!photo||!text(photo.id,100)||!photo.id||photoIds.has(photo.id)||!text(photo.name,500)||!text(photo.caption,2000)||![photo.width,photo.height].every(v=>Number.isInteger(v)&&v>0&&v<=1600)||typeof photo.imageData!=='string'||!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(photo.imageData))errors.push('Некорректная фотография точки прочности.');
+        if(photo)photoIds.add(photo.id);
+      }}
+    }
+    if(p.construction!==undefined&&!text(p.construction,200))errors.push('Некорректная марка конструкции.');
     if(!text(p.id,100)||!p.id||ids.has(p.id)||!Number.isSafeInteger(p.number)||p.number<1||p.number>99999999||numbers.has(p.number))errors.push('Повторяющийся или некорректный номер/ID точки прочности.');
     ids.add(p.id);numbers.add(p.number);
     if(!drawings.some(d=>d.id===p.drawingId)||![p.x,p.y].every(v=>Number.isFinite(v)&&v>=0&&v<=1))errors.push('Некорректное положение точки прочности.');

@@ -633,7 +633,7 @@ td .text-small { margin-top: 4px; line-height: 1.5; }
 .marker[data-workflow="draft"]::after { content: '…'; position: absolute; right: -9px; top: -9px; color: #5d4500; background: #fff1bc; border: 1px solid #a78325; border-radius: 50%; width: 18px; height: 18px; font-size: 12px; line-height: 12px; }
 .zone[data-workflow="draft"] { border-style: dashed; }
 #saveFieldDraft { margin: 6px 0 14px; }
-@media screen and (max-width: 700px) {
+@media screen and (max-width: 700px), screen and (max-height:500px) and (pointer:coarse) {
   .quick-field-bar { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 5px 8px; padding: 7px 12px; order: 1; }
   .quick-field-bar label { grid-column: 1; font-size: 11px; }
   #quickStructure { grid-column: 1; max-width: none; width: 100%; font-size: 16px; min-height: 44px; }
@@ -653,7 +653,7 @@ td .text-small { margin-top: 4px; line-height: 1.5; }
   #mapView .zone-handle { width: 44px; height: 44px; border: 0; background: transparent; box-shadow: none; }
   #mapView .zone-handle::after { content: ''; position: absolute; inset: 14px; border: 2px solid var(--zone-color, var(--teal)); border-radius: 4px; background: white; box-shadow: 0 1px 5px #173b3a40; }
 }
-@media screen and (max-width: 700px) {
+@media screen and (max-width: 700px), screen and (max-height:500px) and (pointer:coarse) {
   #strengthView .mobile-map-header { gap: 6px; padding: 8px; }
   #strengthView .mobile-map-header .btn { min-height: 44px; padding: 8px; font-size: 12px; }
   #strengthView .strength-toolbar { gap: 6px; margin: 0; padding: 8px 12px; }
@@ -679,7 +679,7 @@ td .text-small { margin-top: 4px; line-height: 1.5; }
   #mobileStrengthDialog .strength-reading { align-items: end; }
   #mobileStrengthDialog #strengthDelete { width: 100%; }
 }
-@media screen and (max-width: 700px) {
+@media screen and (max-width: 700px), screen and (max-height:500px) and (pointer:coarse) {
   #mapView .desktop-tool-label { display: none; }
   #mapView .mobile-tool-label { display: inline; }
   .mobile-map-full .toast { top: calc(68px + env(safe-area-inset-top)); bottom: auto; }
@@ -751,10 +751,31 @@ td .text-small { margin-top: 4px; line-height: 1.5; }
 .measure-paint-options{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px}.measure-paint-options label{display:flex;gap:6px;align-items:center}.measure-paint-options input[type=color]{width:44px;height:36px;padding:2px;border:1px solid #cddbd9;border-radius:6px;background:white}.measure-paint-options input[type=range]{width:110px;accent-color:#176b60}.measure-extra summary{font-size:12px;color:#52726c;cursor:pointer;padding:6px 0}.measure-extra .measure-options{padding:8px 0}.painting .measure-selection{display:none}
 #measureView:not(.more-tools) .paint-advanced{display:none}
 #measureDialog{width:min(460px,calc(100vw - 24px));border:1px solid #dce5e4;border-radius:16px;padding:20px;max-height:90dvh;overflow:auto}#measureDialog::backdrop{background:#153e3b60}#measureDialog .dialog-head{display:flex;align-items:center;justify-content:space-between}#measureDialog h2{font-size:20px}#measureFields .field{margin:14px 0}#measureFields input,#measureFields select,#measureFields textarea{width:100%;font:inherit;font-size:16px;padding:11px;border:1px solid #cddbd9;border-radius:8px}#measureFields label{display:block;margin-bottom:7px}#measureError{color:#b54737;font-size:13px}#measureDialog .dialog-actions{display:flex;justify-content:flex-end}
-@media(max-width:700px){
+@media(max-width:700px), (max-height:500px) and (pointer:coarse){
  #measureView{padding:10px;gap:7px;height:780px;min-height:600px}#measureFullscreen{display:block;font-size:12px}.measure-heading h2{font-size:18px}.measure-heading span{font-size:10px}.measure-heading{gap:6px}.measure-heading .btn{padding:8px;min-height:44px}
  .measure-sheet-row{gap:5px}.measure-sheet-row select{font-size:16px;max-width:none;width:100%;flex-basis:100%}.measure-sheet-row .btn{min-height:36px;font-size:11px;padding:6px 8px}#measureFloor{margin-left:auto;font-size:11px}
  .measure-tools{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.measure-tools button{font-size:12px;padding:7px 3px}.measure-options{gap:4px}.measure-options label{font-size:11px}.measure-options .btn{font-size:11px;padding:6px}.measure-options .icon-btn{min-width:36px;min-height:36px}#measureHint{font-size:11px;min-height:30px}
  .measure-selection{gap:5px}.measure-selection>span{font-size:11px}.measure-selection .btn{padding:7px;min-height:40px;font-size:11px}.measure-footer{gap:5px}.measure-footer .btn{min-height:44px;padding:8px;font-size:12px}.measure-footer>span{font-size:10px}
  body.mobile-measure-full{overflow:hidden}body.mobile-measure-full #measureView{position:fixed;inset:0;z-index:100;height:100dvh;min-height:0;border:0;border-radius:0;padding:calc(8px + env(safe-area-inset-top)) 10px calc(8px + env(safe-area-inset-bottom))}body.mobile-measure-full #measureViewport{min-height:80px}
 }
+
+.field-hub{width:min(760px,96vw);max-height:92dvh}.field-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}.construction-card{padding:12px;border:1px solid #dce5e4;border-radius:12px;margin:12px 0}.field-hub .dialog-body{overflow:auto}.quick-field-bar{flex-wrap:wrap}
+@media (orientation:landscape) and (max-height:500px){
+ body.mobile-measure-full #measureView{display:grid;grid-template-columns:180px minmax(0,1fr);grid-template-rows:44px minmax(0,1fr) auto 44px;gap:6px;overflow:hidden}
+ .mobile-measure-full .measure-heading #measureNew{display:none}
+ .mobile-measure-full .measure-tools{min-height:0;overflow-y:auto;align-content:start}
+ .mobile-measure-full .measure-draw-options{grid-column:1;grid-row:3}
+ .mobile-measure-full .measure-options{flex-wrap:nowrap;gap:2px}
+ .mobile-measure-full .measure-options .icon-btn{min-width:30px;width:30px;padding:0}
+ .mobile-measure-full .measure-options .btn{padding:4px;font-size:10px}
+ .mobile-measure-full .measure-selection{flex-wrap:nowrap;min-width:0;overflow-x:auto}
+ .mobile-measure-full .measure-heading{grid-column:1}.mobile-measure-full .measure-heading span,.mobile-measure-full .measure-sheet-row,.mobile-measure-full #measureHint,.mobile-measure-full .measure-extra,.mobile-measure-full .measure-footer>span{display:none}
+ .mobile-measure-full .measure-tools{grid-column:1;grid-row:2;grid-template-columns:repeat(2,1fr)}
+ .mobile-measure-full #measurePaintOptions{grid-column:1;grid-row:3;align-content:start;gap:4px}
+ .mobile-measure-full #measureViewport{grid-column:2;grid-row:1 / 4;min-height:120px;height:100%}
+ .mobile-measure-full .measure-options{grid-column:1;grid-row:4}.mobile-measure-full .measure-footer,.mobile-measure-full .measure-selection{grid-column:2;grid-row:4}.mobile-measure-full .measure-selection:not(:has(button:enabled)){display:none}.mobile-measure-full #measureView:not(.painting) .measure-footer{display:none}
+ .mobile-map-full .quick-field-bar{max-height:88px;overflow:auto}.mobile-map-full .canvas-hint,.mobile-map-full #quickStatus{display:none}
+ .mobile-strength-full .strength-floor,.mobile-strength-full #strengthHint{display:none}
+}
+
+#measureView.hide-dimensions .dimension-layer{display:none}
