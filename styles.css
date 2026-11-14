@@ -779,3 +779,5 @@ td .text-small { margin-top: 4px; line-height: 1.5; }
 }
 
 #measureView.hide-dimensions .dimension-layer{display:none}
+
+.object-search label{display:flex;flex-direction:column;gap:6px;font-size:13px}.object-search input,.object-search select{width:100%;min-width:0;min-height:46px;font:inherit;font-size:16px;padding:10px;border:1px solid #cddbd9;border-radius:9px;background:white}.search-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.search-result{display:flex;flex-direction:column;gap:6px;overflow-wrap:anywhere}.search-result span{font-size:12px;color:#52726c}.field-tabs [aria-pressed=true]{background:#176b60;color:white}.object-search [data-results]{max-height:52dvh;overflow-y:auto}
