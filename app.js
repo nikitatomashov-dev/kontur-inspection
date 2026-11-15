@@ -1,3 +1,5 @@
+import {annotatePhoto} from './photo-annotator.js';
+import {createTasks} from './tasks.js';
 import {createHomeSync} from './home-sync.js';
 import {createFieldHub} from './field-hub.js';
 import {repeatDefect} from './field-model.js';
@@ -38,7 +40,7 @@ document.querySelectorAll('[data-icon]').forEach(element => { element.innerHTML 
 const options = (items, selected) => items.map(item => `<option value="${escapeHtml(item.id)}"${item.id === selected ? ' selected' : ''}>${escapeHtml(item.label ?? item.title)}</option>`).join('');
 let project, activeDrawingId, selectedId = null, draft = null, dirty = false, scale = 1, mode = 'select', activeTab = 'map';
 let persistent = true, storageWriteBlocked = false, uploadFile = null, pdfSession = null, toastTimer, dragging = false, busy = false;
-let repeatSource=null,homeSync;
+let repeatSource=null,homeSync,tasksWorkspace;
 let photoBusy = false, zoneEditor, activePlacementId = null, addingPlacement = false;
 let strengthWorkspace, calibrationWorkspace, measureWorkspace, mobileMap, quickCapture, lastSurveyTab = 'map';
 const activePlacement = () => draft?.placements.find(p => p.id === activePlacementId);
@@ -72,7 +74,7 @@ function confirmAction(message, title = 'Подтвердите действие
   });
 }
 async function canLeave() {
-  if(homeSync?.busy || photoBusy || busy || strengthWorkspace?.busy || calibrationWorkspace?.busy || measureWorkspace?.busy) { notify('Дождитесь окончания обработки и сохранения.'); return false; }
+  if(tasksWorkspace?.busy || homeSync?.busy || photoBusy || busy || strengthWorkspace?.busy || calibrationWorkspace?.busy || measureWorkspace?.busy) { notify('Дождитесь окончания обработки и сохранения.'); return false; }
   return (!dirty && !strengthWorkspace?.dirty) || await confirmAction('В карточке есть несохранённые изменения. Отменить их?', 'Карточка не сохранена');
 }
 function askText(title, value = '', {required = true} = {}) {
@@ -90,6 +92,7 @@ function setMode(nextMode) {
   mode = nextMode;
   if(mode === 'select') {addingPlacement = false;repeatSource=null;}
   for(const [id,value] of [['addTool','add'],['zoneTool','zone'],['selectTool','select']]) { $(id).classList.toggle('active',mode===value); $(id).setAttribute('aria-pressed',String(mode===value)); }
+  tasksWorkspace?.cancel();
   $('drawingStage').dataset.mode = mode;
   $('drawingStage').style.cursor = mode === 'select' ? 'grab' : 'crosshair';
   $('modeHint').textContent = addingPlacement ? `Ещё одно место дефекта № ${draft.number}: ${mode === 'zone' ? 'обведите зону' : 'укажите точку'}` : mode === 'zone' ? 'Обведите зону или укажите два противоположных угла' : mode === 'add' ? 'Нажмите на чертеже в месте дефекта' : 'Выберите отметку, чтобы открыть карточку';
@@ -151,6 +154,7 @@ function renderMarkers() {
     }
     return `<button class="marker${selected?' selected':''}" ${attributes} style="left:${placement.x*100}%;top:${placement.y*100}%;--marker-color:${appearance.color};${style}" title="№ ${defect.number} — ${escapeHtml(defect.title||'Новый дефект')}" aria-label="Дефект ${defect.number}: ${escapeHtml(defectDescription(defect)||'новая отметка')}"><span class="marker-number">${defect.number}</span></button>`;
   })).join('');
+  tasksWorkspace?.render();
   $('defectLegend').innerHTML = visible.sort((a,b)=>a.number-b.number).map(d=>`<button class="defect-legend-item" type="button" data-legend-defect="${escapeHtml(d.id)}" title="${escapeHtml(d.title)}"><span class="appearance-swatch" style="${getAppearanceStyle(d.number)}"></span>№ ${d.number}${d.workflow==='draft'?' · черновик':''}</button>`).join('');
 }
 function captureDraftFields() {
@@ -179,7 +183,7 @@ function renderPhotos() {
   const photos=draft?.photos ?? [];
   $('photoCount').textContent=`${photos.length} / ${MAX_PHOTOS_PER_DEFECT}`;
   $('photoEmpty').classList.toggle('hidden',photos.length>0);
-  $('photoGrid').innerHTML=photos.map((photo,index)=>`<div class="photo-card"><button type="button" class="photo-preview" data-view-photo="${escapeHtml(photo.id)}" aria-label="Открыть фото ${index+1}"><img src="${escapeHtml(photo.imageData)}" alt="${escapeHtml(photo.caption||photo.name)}"></button><button type="button" class="photo-remove icon-btn" data-remove-photo="${escapeHtml(photo.id)}" aria-label="Убрать фото ${index+1}" title="Убрать фотографию из карточки">${icon('close')}</button><div class="photo-filename" title="${escapeHtml(photo.name)}">${escapeHtml(photo.name)}</div><input class="photo-caption" data-photo-caption="${escapeHtml(photo.id)}" value="${escapeHtml(photo.caption)}" maxlength="2000" aria-label="Подпись к фото ${index+1}" placeholder="Подпись к фотографии"></div>`).join('');
+  $('photoGrid').innerHTML=photos.map((photo,index)=>`<div class="photo-card"><button type="button" class="photo-preview" data-view-photo="${escapeHtml(photo.id)}" aria-label="Открыть фото ${index+1}"><img src="${escapeHtml(photo.imageData)}" alt="${escapeHtml(photo.caption||photo.name)}"></button><button type="button" class="photo-remove icon-btn" data-remove-photo="${escapeHtml(photo.id)}" aria-label="Убрать фото ${index+1}" title="Убрать фотографию из карточки">${icon('close')}</button><button type="button" class="btn btn-secondary" data-annotate="${escapeHtml(photo.id)}">Разметить фото</button><div class="photo-filename" title="${escapeHtml(photo.name)}">${escapeHtml(photo.name)}</div><input class="photo-caption" data-photo-caption="${escapeHtml(photo.id)}" value="${escapeHtml(photo.caption)}" maxlength="2000" aria-label="Подпись к фото ${index+1}" placeholder="Подпись к фотографии"></div>`).join('');
   $('addPhotos').disabled=photoBusy||photos.length>=MAX_PHOTOS_PER_DEFECT; $('takePhoto').disabled=$('addPhotos').disabled;
   $('saveDefect').disabled=photoBusy; $('deleteDefect').disabled=photoBusy;
   mobileMap?.setBusy(photoBusy || busy);
@@ -412,8 +416,8 @@ on('drawingList','click',async event=>{
   if(select){resetCard();strengthWorkspace.reset(); activeDrawingId=select.dataset.drawing; await switchTab(['strength','calibration'].includes(activeTab)?'strength':'map'); renderAll(true);}
   if(rename){const drawing=project.drawings.find(d=>d.id===rename.dataset.renameDrawing); const name=await askText('Название чертежа',drawing.name);if(name){const next=structuredClone(project);next.drawings.find(d=>d.id===drawing.id).name=name;await commit(next);renderAll();}}
   if(remove){const id=remove.dataset.deleteDrawing, drawing=project.drawings.find(d=>d.id===id),count=project.defects.flatMap(getPlacements).filter(p=>p.drawingId===id).length;
-    if(!await confirmAction(`Удалить «${drawing.name}», отметки дефектов (${count}) и точки прочности (${(project.strengthPoints??[]).filter(p=>p.drawingId===id).length}) на нём? Дефекты с местами на других чертежах сохранятся. Отменить удаление можно из скачанной копии проекта.`,'Удалить чертёж?'))return;
-    const next=structuredClone(project);next.drawings=next.drawings.filter(d=>d.id!==id);next.strengthPoints=(next.strengthPoints??[]).filter(p=>p.drawingId!==id);next.defects=next.defects.map(d=>({...d,placements:d.placements.filter(p=>p.drawingId!==id)})).filter(d=>d.placements.length);await commit(next);if(activeDrawingId===id)activeDrawingId=project.drawings[0]?.id;resetCard();strengthWorkspace.reset();renderAll(true);
+    if(!await confirmAction(`Удалить «${drawing.name}», отметки дефектов (${count}) и задания (${(project.tasks??[]).filter(t=>t.drawingId===id).length}), точки прочности (${(project.strengthPoints??[]).filter(p=>p.drawingId===id).length}) на нём? Дефекты с местами на других чертежах сохранятся. Отменить удаление можно из скачанной копии проекта.`,'Удалить чертёж?'))return;
+    const next=structuredClone(project);next.drawings=next.drawings.filter(d=>d.id!==id);next.tasks=(next.tasks??[]).filter(t=>t.drawingId!==id);next.strengthPoints=(next.strengthPoints??[]).filter(p=>p.drawingId!==id);next.defects=next.defects.map(d=>({...d,placements:d.placements.filter(p=>p.drawingId!==id)})).filter(d=>d.placements.length);await commit(next);if(activeDrawingId===id)activeDrawingId=project.drawings[0]?.id;resetCard();strengthWorkspace.reset();renderAll(true);
   }
 });
 on('defectForm','input',markDirty);
@@ -422,7 +426,8 @@ on('addPhotos','click',()=>{if(draft&&!photoBusy&&!busy){$('photoFiles').value='
 on('takePhoto','click',()=>{if(draft&&!photoBusy&&!busy){$('cameraFile').value='';$('cameraFile').click();}});
 on('photoFiles','change',()=>addPhotoFiles([...$('photoFiles').files]));
 on('cameraFile','change',()=>addPhotoFiles([...$('cameraFile').files]));
-on('photoGrid','click',event=>{
+on('photoGrid','click',async event=>{
+  const edit=event.target.closest('[data-annotate]');if(edit&&draft&&!photoBusy&&!busy){photoBusy=true;renderPhotos();try{const photo=draft.photos.find(p=>p.id===edit.dataset.annotate);const changed=await annotatePhoto(photo);if(changed){draft.photos=draft.photos.map(p=>p.id===changed.id?changed:p);markDirty();}}finally{photoBusy=false;renderPhotos();}return;}
   const remove=event.target.closest('[data-remove-photo]'),preview=event.target.closest('[data-view-photo]');if(!draft||photoBusy||busy)return;
   if(remove){draft.photos=draft.photos.filter(p=>p.id!==remove.dataset.removePhoto);markDirty();renderPhotos();}
   if(preview)showPhoto(draft.photos.find(p=>p.id===preview.dataset.viewPhoto),draft.number);
@@ -627,7 +632,8 @@ calibrationWorkspace=createCalibrationWorkspace({getProject:()=>project,commit,a
 quickCapture=createQuickCapture({getProject:()=>project,getDrawingId:()=>activeDrawingId,isBusy:()=>busy||photoBusy,setBusy:value=>{busy=value;},commit,isPersistent:()=>persistent,canLeave,resetCard,setMode,renderAll,openDefect,notify});
 init();
 
-const fieldHub=createFieldHub({openMeasure:async id=>{if(await switchTab('measure'))measureWorkspace.open(id);},getProject:()=>project,canLeave,openDefect,openStrength:async id=>{if(await switchTab('strength'))await strengthWorkspace.open(id);},download,notify,report:async()=>{await exportBundle(project,download);},restore:async p=>{if(!await canLeave())return;const next=upgradeProject(p);next.id=uid();next.name+=' · восстановленная копия';await commit(next);resetCard();strengthWorkspace.reset();activeDrawingId=project.drawings[0]?.id;renderAll(true);}});
+tasksWorkspace=createTasks({getProject:()=>project,getDrawingId:()=>activeDrawingId,canLeave,commit:async p=>{await commit(p);if(!persistent)throw new Error('Не удалось сохранить на устройстве. Скачайте копию проекта.');},renderAll,notify,setMode,resetCard,switchDrawing:async id=>{activeDrawingId=id;await switchTab('map');renderAll(true);}});
+const fieldHub=createFieldHub({openTask:id=>tasksWorkspace.open(id),openMeasure:async id=>{if(await switchTab('measure'))measureWorkspace.open(id);},getProject:()=>project,canLeave,openDefect,openStrength:async id=>{if(await switchTab('strength'))await strengthWorkspace.open(id);},download,notify,report:async()=>{await exportBundle(project,download);},restore:async p=>{if(!await canLeave())return;const next=upgradeProject(p);next.id=uid();next.name+=' · восстановленная копия';await commit(next);resetCard();strengthWorkspace.reset();activeDrawingId=project.drawings[0]?.id;renderAll(true);}});
 on('fieldHub','click',()=>fieldHub.open());on('fieldHubMobile','click',()=>fieldHub.open());
 on('repeatLast','click',async()=>{
  if(!await canLeave()||!activeDrawingId)return;
@@ -638,7 +644,7 @@ on('repeatLast','click',async()=>{
  dialog.addEventListener('click',async e=>{if(e.target.closest('[data-cancel]'))dialog.close();if(e.target.closest('[data-new]')){dialog.close();quickCapture.stop();resetCard();repeatSource=structuredClone(source);setMode('add');$('modeHint').textContent='Укажите новое место: параметры будут скопированы из № '+source.number;}if(e.target.closest('[data-place]')){dialog.close();await openDefect(source.id);$('placementDrawing').value=activeDrawingId;$('addPlacementPoint').click();}});
 });
 
-homeSync=createHomeSync({connectRemote:async source=>{if(!await canLeave())return false;if(await loadProject(source.id))throw new Error('Объект с таким ID уже есть на устройстве. Откройте его через «Мои объекты» и выполните синхронизацию; при конфликте загрузите отдельную копию.');const next=upgradeProject(source);await commit(next);if(!persistent)return false;resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;renderAll(true);return true;},getProject:()=>project,canLeave,isBusy:()=>busy||photoBusy||dirty||!!strengthWorkspace?.dirty||!!strengthWorkspace?.busy||!!measureWorkspace?.busy,notify,
+homeSync=createHomeSync({connectRemote:async source=>{if(!await canLeave())return false;if(await loadProject(source.id))throw new Error('Объект с таким ID уже есть на устройстве. Откройте его через «Мои объекты» и выполните синхронизацию; при конфликте загрузите отдельную копию.');const next=upgradeProject(source);await commit(next);if(!persistent)return false;resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;renderAll(true);return true;},getProject:()=>project,canLeave,isBusy:()=>tasksWorkspace?.busy||busy||photoBusy||dirty||!!strengthWorkspace?.dirty||!!strengthWorkspace?.busy||!!measureWorkspace?.busy,notify,
  applyRemote:async source=>{busy=true;try{const next=upgradeProject(source);await commit(next);if(!persistent)throw new Error('Серверная версия не сохранена локально. Скачайте проект.');resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;measureWorkspace.reload();renderAll(true);}finally{busy=false;}},
  importCopy:async source=>{if(!await canLeave())return;const next=upgradeProject(source);next.id=uid();next.name+=' · с сервера';await commit(next);resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;renderAll(true);}
 });

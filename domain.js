@@ -1,3 +1,4 @@
+import {validateTasks,validOriginal} from './tasks-model.js';
 import { validateSketches } from './measure-model.js';
 import { validateStrengthPoints } from './strength-model.js';
 import { ENGINEERING_SYSTEMS, APPENDIX_TEMPLATES, NETWORK_TEMPLATES } from './reference-catalog.js';
@@ -263,6 +264,8 @@ export function validateProject(project) {
           if (!object(photo)) { issue(`${photoPrefix}некорректная запись.`); continue; }
           if (!str(photo.id, 100, true) || photoIds.has(photo.id)) issue(`${photoPrefix}некорректный или повторяющийся идентификатор.`);
           photoIds.add(photo.id);
+          if(!validOriginal(photo))issue(`${photoPrefix}некорректный оригинал фотографии.`);
+          else totalImageCharacters += photo.originalImageData?.length??0;
           if (!str(photo.name, 500, true) || !str(photo.caption, 2000)) issue(`${photoPrefix}некорректное имя или подпись.`);
           if (!Number.isInteger(photo.width) || !Number.isInteger(photo.height) || photo.width < 1 || photo.height < 1 || photo.width > MAX_PHOTO_SIDE || photo.height > MAX_PHOTO_SIDE) issue(`${photoPrefix}размер должен быть от 1 до ${MAX_PHOTO_SIDE} пикселей.`);
           if (typeof photo.imageData !== 'string' || !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(photo.imageData)) issue(`${photoPrefix}изображение должно быть PNG, JPEG или WebP в формате data URL.`);
@@ -285,5 +288,6 @@ export function validateProject(project) {
   for(const message of validateStrengthPoints(project.strengthPoints, project.drawings, STRUCTURES.map(s=>s.id)))issue(message);
   if (totalImageCharacters > MAX_BACKUP_BYTES) issue('Чертежи и фотографии проекта превышают допустимый объём резервной копии (50 МБ).');
   for(const message of validateSketches(project.measureSketches))issue(message);
+  for(const message of validateTasks(project.tasks,project.drawings))issue(message);
   return { valid: errors.length === 0, errors };
 }

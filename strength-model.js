@@ -1,3 +1,4 @@
+import {validOriginal} from './tasks-model.js';
 import { validateCalibration } from './calibration-model.js';
 export function measurementValue(text) {
   const value=String(text ?? '').trim().replace(',', '.');
@@ -18,7 +19,7 @@ export function validateStrengthPoints(points, drawings, structures) {
       if(!Array.isArray(p.photos)||p.photos.length>12)errors.push('До 12 фото на точку прочности.');
       else{const photoIds=new Set();for(const photo of p.photos){
         if(!photo||!text(photo.id,100)||!photo.id||photoIds.has(photo.id)||!text(photo.name,500)||!text(photo.caption,2000)||![photo.width,photo.height].every(v=>Number.isInteger(v)&&v>0&&v<=1600)||typeof photo.imageData!=='string'||!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(photo.imageData))errors.push('Некорректная фотография точки прочности.');
-        if(photo)photoIds.add(photo.id);
+        if(photo){photoIds.add(photo.id);if(!validOriginal(photo))errors.push("Некорректный оригинал фотографии точки.");}
       }}
     }
     if(p.construction!==undefined&&!text(p.construction,200))errors.push('Некорректная марка конструкции.');

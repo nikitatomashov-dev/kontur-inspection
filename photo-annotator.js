@@ -1,0 +1,20 @@
+// Raster annotation preserves the imported (already resized) photo in originalImageData.
+export async function annotatePhoto(photo){
+ const image=new Image();image.src=photo.imageData;await image.decode();
+ const dialog=document.createElement('dialog');dialog.className='photo-editor';
+ dialog.innerHTML='<h2>Разметка фотографии</h2><p>Выберите инструмент и проведите пальцем. Для подписи укажите текст и коснитесь фотографии.</p><div class="annotation-tools"><label>Инструмент<select data-tool><option value="arrow">Стрелка</option><option value="box">Обводка</option><option value="text">Подпись</option></select></label><label>Текст<input data-text maxlength="120" placeholder="Раскрытие 0,3 мм"></label><button type="button" data-undo>Отменить штрих</button><button type="button" data-original>Вернуть оригинал</button></div><canvas aria-label="Фотография для разметки"></canvas><div class="dialog-actions"><button type="button" class="btn btn-secondary" data-cancel>Отмена</button><button type="button" class="btn btn-primary" data-save>Применить к фото</button></div><p data-message role="status"></p>';
+ document.body.append(dialog);const canvas=dialog.querySelector('canvas');canvas.width=photo.width;canvas.height=photo.height;const c=canvas.getContext('2d');let shapes=[],drag=null,restored=false,loading=false;
+ const point=e=>{const r=canvas.getBoundingClientRect();return{x:Math.max(0,Math.min(canvas.width,(e.clientX-r.left)*canvas.width/r.width)),y:Math.max(0,Math.min(canvas.height,(e.clientY-r.top)*canvas.height/r.height))};};
+ const size=Math.max(18,canvas.width/38),line=Math.max(3,canvas.width/300);
+ function paint(){c.drawImage(image,0,0,canvas.width,canvas.height);for(const s of [...shapes,...(drag?[drag]:[])]){c.save();c.strokeStyle='#e12020';c.fillStyle='#e12020';c.lineWidth=line;c.lineJoin='round';c.lineCap='round';const a=s.a,b=s.b;
+ if(s.kind==='text'){c.font=`bold ${size}px Arial`;c.strokeStyle='white';c.lineWidth=line*2;c.textBaseline='top';c.strokeText(s.text,a.x,a.y,Math.max(1,canvas.width-a.x));c.fillText(s.text,a.x,a.y,Math.max(1,canvas.width-a.x));}
+ else if(s.kind==='box')c.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);
+ else {const angle=Math.atan2(b.y-a.y,b.x-a.x),h=size*.65;c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.lineTo(b.x-h*Math.cos(angle-.5),b.y-h*Math.sin(angle-.5));c.moveTo(b.x,b.y);c.lineTo(b.x-h*Math.cos(angle+.5),b.y-h*Math.sin(angle+.5));c.stroke();}c.restore();}}
+ canvas.addEventListener('pointerdown',e=>{if(loading||drag||e.isPrimary===false||e.button!==0)return;e.preventDefault();const a=point(e),kind=dialog.querySelector('[data-tool]').value;if(kind==='text'){const text=dialog.querySelector('[data-text]').value.trim();if(!text){dialog.querySelector('[data-message]').textContent='Сначала введите подпись.';return;}shapes.push({kind,a,text});paint();return;}drag={kind,a,b:a,id:e.pointerId};canvas.setPointerCapture(e.pointerId);});
+ canvas.addEventListener('pointermove',e=>{if(drag?.id===e.pointerId){drag.b=point(e);paint();}});
+ canvas.addEventListener('pointerup',e=>{if(drag?.id!==e.pointerId)return;drag.b=point(e);if(Math.hypot(drag.a.x-drag.b.x,drag.a.y-drag.b.y)>3)shapes.push(drag);drag=null;paint();});
+ canvas.addEventListener('pointercancel',()=>{drag=null;paint();});
+ dialog.querySelector('[data-undo]').onclick=()=>{shapes.pop();paint();};
+ dialog.querySelector('[data-original]').onclick=async()=>{if(loading)return;loading=true;try{image.src=photo.originalImageData??photo.imageData;await image.decode();shapes=[];drag=null;restored=true;paint();}finally{loading=false;}};
+ paint();dialog.showModal();return new Promise(resolve=>{let result=null;dialog.querySelector('[data-cancel]').onclick=()=>dialog.close();dialog.querySelector('[data-save]').onclick=()=>{if(loading||drag)return;result={...photo,originalImageData:photo.originalImageData??photo.imageData,imageData:restored&&!shapes.length?(photo.originalImageData??photo.imageData):canvas.toDataURL('image/jpeg',.9)};dialog.close();};dialog.addEventListener('close',()=>{dialog.remove();resolve(result);},{once:true});});
+}

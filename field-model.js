@@ -51,6 +51,7 @@ export function pendingWork(project) {
     if(!project.drawings.find(d=>d.id===p.drawingId)?.floor?.trim())missing.push('этаж');
     if(missing.length)items.push({kind:'strength',id:p.id,label:`Точка П${p.number}`,missing});
   }
+  for(const t of project.tasks??[])if(t.status!=='done')items.push({kind:'task',id:t.id,label:`Задание З${t.number}: ${t.title}`,missing:[t.status==='blocked'?'недоступно — уточнить дальнейшие действия':'запланировано']});
   return items;
 }
 export function constructionCards(project) {

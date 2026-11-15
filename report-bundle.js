@@ -1,3 +1,4 @@
+import {TASK_STATUS} from './tasks-model.js';
 import {buildDocx,zip} from './docx-export.js';
 import {sketchSvg} from './measure-model.js';
 import {drawDefectZone,drawDefectMarker} from './appearance.js';
@@ -11,6 +12,7 @@ export function strengthReport(project){
 }
 export async function exportBundle(source,download){
   const p=structuredClone(source),files=[['Объект.kontur.json',JSON.stringify(p)],['Прочности.html',strengthReport(p)],['Проверить.txt',pendingWork(p).map(i=>i.label+': '+i.missing.join(', ')).join('\n')||'Пропусков по проверяемым полям нет.']];
+  files.push(['Задания.txt',(p.tasks??[]).map(t=>`З${t.number} · ${t.title} · ${TASK_STATUS[t.status]} · ${p.drawings.find(d=>d.id===t.drawingId)?.name}\n${t.note}`).join('\n\n')||'Заданий нет.']);
   files.push(['Ведомость дефектов.docx',new Uint8Array(await (await buildDocx(p)).arrayBuffer())]);
   for(const [index,d] of p.drawings.entries()){
     const image=new Image();image.src=d.imageData;await image.decode();

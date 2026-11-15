@@ -62,7 +62,7 @@ export async function preparePhoto(file) {
 
 /** Run after schema validation and before replacing a project with an imported backup. */
 export async function verifyPhotoImages(photos = []) {
-  for (const photo of photos) {
+  for (const photo of photos.flatMap(p=>p.originalImageData?[p,{...p,imageData:p.originalImageData}]:[p])) {
     try {
       if (!DATA_IMAGE.test(photo?.imageData ?? '')) throw new Error('Недопустимый формат изображения.');
       const image = new Image();
