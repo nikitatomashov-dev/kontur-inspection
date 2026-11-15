@@ -1,4 +1,5 @@
 import {validateTasks,validOriginal} from './tasks-model.js';
+import {validateRuler} from './ruler-model.js';
 import { validateSketches } from './measure-model.js';
 import { validateStrengthPoints } from './strength-model.js';
 import { ENGINEERING_SYSTEMS, APPENDIX_TEMPLATES, NETWORK_TEMPLATES } from './reference-catalog.js';
@@ -216,6 +217,7 @@ export function validateProject(project) {
     drawingIds.add(drawing.id);
     if (!str(drawing.name, 200, true)) issue(`${prefix}название должно содержать от 1 до 200 символов.`);
     if (drawing.floor !== undefined && !str(drawing.floor, 200)) issue(`${prefix}этаж должен быть текстом до 200 символов.`);
+    for (const message of validateRuler(drawing)) issue(prefix + message);
     if (!['plan', 'section', 'facade'].includes(drawing.type)) issue(`${prefix}неизвестный тип чертежа.`);
     if (!str(drawing.sourceName, 500)) issue(`${prefix}некорректное имя исходного файла.`);
     if (!Number.isInteger(drawing.width) || !Number.isInteger(drawing.height) || drawing.width < 1 || drawing.height < 1 || drawing.width > 20000 || drawing.height > 20000) issue(`${prefix}некорректные размеры изображения.`);

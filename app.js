@@ -1,4 +1,5 @@
 import {annotatePhoto} from './photo-annotator.js';
+import {createRuler} from './ruler.js';
 import {createTasks} from './tasks.js';
 import {createHomeSync} from './home-sync.js';
 import {createFieldHub} from './field-hub.js';
@@ -40,7 +41,7 @@ document.querySelectorAll('[data-icon]').forEach(element => { element.innerHTML 
 const options = (items, selected) => items.map(item => `<option value="${escapeHtml(item.id)}"${item.id === selected ? ' selected' : ''}>${escapeHtml(item.label ?? item.title)}</option>`).join('');
 let project, activeDrawingId, selectedId = null, draft = null, dirty = false, scale = 1, mode = 'select', activeTab = 'map';
 let persistent = true, storageWriteBlocked = false, uploadFile = null, pdfSession = null, toastTimer, dragging = false, busy = false;
-let repeatSource=null,homeSync,tasksWorkspace;
+let repeatSource=null,homeSync,tasksWorkspace,rulerWorkspace;
 let photoBusy = false, zoneEditor, activePlacementId = null, addingPlacement = false;
 let strengthWorkspace, calibrationWorkspace, measureWorkspace, mobileMap, quickCapture, lastSurveyTab = 'map';
 const activePlacement = () => draft?.placements.find(p => p.id === activePlacementId);
@@ -74,7 +75,7 @@ function confirmAction(message, title = 'Подтвердите действие
   });
 }
 async function canLeave() {
-  if(tasksWorkspace?.busy || homeSync?.busy || photoBusy || busy || strengthWorkspace?.busy || calibrationWorkspace?.busy || measureWorkspace?.busy) { notify('Дождитесь окончания обработки и сохранения.'); return false; }
+  if(rulerWorkspace?.busy || tasksWorkspace?.busy || homeSync?.busy || photoBusy || busy || strengthWorkspace?.busy || calibrationWorkspace?.busy || measureWorkspace?.busy) { notify('Дождитесь окончания обработки и сохранения.'); return false; }
   return (!dirty && !strengthWorkspace?.dirty) || await confirmAction('В карточке есть несохранённые изменения. Отменить их?', 'Карточка не сохранена');
 }
 function askText(title, value = '', {required = true} = {}) {
@@ -93,6 +94,7 @@ function setMode(nextMode) {
   if(mode === 'select') {addingPlacement = false;repeatSource=null;}
   for(const [id,value] of [['addTool','add'],['zoneTool','zone'],['selectTool','select']]) { $(id).classList.toggle('active',mode===value); $(id).setAttribute('aria-pressed',String(mode===value)); }
   tasksWorkspace?.cancel();
+  rulerWorkspace?.cancel();
   $('drawingStage').dataset.mode = mode;
   $('drawingStage').style.cursor = mode === 'select' ? 'grab' : 'crosshair';
   $('modeHint').textContent = addingPlacement ? `Ещё одно место дефекта № ${draft.number}: ${mode === 'zone' ? 'обведите зону' : 'укажите точку'}` : mode === 'zone' ? 'Обведите зону или укажите два противоположных угла' : mode === 'add' ? 'Нажмите на чертеже в месте дефекта' : 'Выберите отметку, чтобы открыть карточку';
@@ -155,6 +157,7 @@ function renderMarkers() {
     return `<button class="marker${selected?' selected':''}" ${attributes} style="left:${placement.x*100}%;top:${placement.y*100}%;--marker-color:${appearance.color};${style}" title="№ ${defect.number} — ${escapeHtml(defect.title||'Новый дефект')}" aria-label="Дефект ${defect.number}: ${escapeHtml(defectDescription(defect)||'новая отметка')}"><span class="marker-number">${defect.number}</span></button>`;
   })).join('');
   tasksWorkspace?.render();
+  rulerWorkspace?.render();
   $('defectLegend').innerHTML = visible.sort((a,b)=>a.number-b.number).map(d=>`<button class="defect-legend-item" type="button" data-legend-defect="${escapeHtml(d.id)}" title="${escapeHtml(d.title)}"><span class="appearance-swatch" style="${getAppearanceStyle(d.number)}"></span>№ ${d.number}${d.workflow==='draft'?' · черновик':''}</button>`).join('');
 }
 function captureDraftFields() {
@@ -279,7 +282,7 @@ function renderRows() {
 function renderAll(fit = false) { quickCapture?.render(); renderSidebar(); renderMap(fit); renderRegister(); if(activeTab==='strength')strengthWorkspace.render(); if(activeTab==='calibration')calibrationWorkspace.render(); if(activeTab==='measure')measureWorkspace.render(); }
 async function switchTab(tab) {
   if (tab !== activeTab && !await canLeave()) return false;
-  if (tab !== activeTab) { resetCard(); strengthWorkspace?.reset(); }
+  if (tab !== activeTab) { rulerWorkspace?.cancel(); resetCard(); strengthWorkspace?.reset(); }
   activeTab = tab;
   if(tab === 'map') mobileMap?.enter(); else mobileMap?.sync();
   const laboratory = tab === 'strength' || tab === 'calibration';
@@ -633,6 +636,7 @@ quickCapture=createQuickCapture({getProject:()=>project,getDrawingId:()=>activeD
 init();
 
 tasksWorkspace=createTasks({getProject:()=>project,getDrawingId:()=>activeDrawingId,canLeave,commit:async p=>{await commit(p);if(!persistent)throw new Error('Не удалось сохранить на устройстве. Скачайте копию проекта.');},renderAll,notify,setMode,resetCard,switchDrawing:async id=>{activeDrawingId=id;await switchTab('map');renderAll(true);}});
+rulerWorkspace=createRuler({getProject:()=>project,getDrawing:activeDrawing,canLeave,commit:async p=>{await commit(p);if(!persistent)throw new Error('Не удалось сохранить на устройстве. Скачайте копию проекта.');},renderAll,setMode,resetCard,notify,isNavigating:()=>dragging});
 const fieldHub=createFieldHub({openTask:id=>tasksWorkspace.open(id),openMeasure:async id=>{if(await switchTab('measure'))measureWorkspace.open(id);},getProject:()=>project,canLeave,openDefect,openStrength:async id=>{if(await switchTab('strength'))await strengthWorkspace.open(id);},download,notify,report:async()=>{await exportBundle(project,download);},restore:async p=>{if(!await canLeave())return;const next=upgradeProject(p);next.id=uid();next.name+=' · восстановленная копия';await commit(next);resetCard();strengthWorkspace.reset();activeDrawingId=project.drawings[0]?.id;renderAll(true);}});
 on('fieldHub','click',()=>fieldHub.open());on('fieldHubMobile','click',()=>fieldHub.open());
 on('repeatLast','click',async()=>{
@@ -644,7 +648,7 @@ on('repeatLast','click',async()=>{
  dialog.addEventListener('click',async e=>{if(e.target.closest('[data-cancel]'))dialog.close();if(e.target.closest('[data-new]')){dialog.close();quickCapture.stop();resetCard();repeatSource=structuredClone(source);setMode('add');$('modeHint').textContent='Укажите новое место: параметры будут скопированы из № '+source.number;}if(e.target.closest('[data-place]')){dialog.close();await openDefect(source.id);$('placementDrawing').value=activeDrawingId;$('addPlacementPoint').click();}});
 });
 
-homeSync=createHomeSync({connectRemote:async source=>{if(!await canLeave())return false;if(await loadProject(source.id))throw new Error('Объект с таким ID уже есть на устройстве. Откройте его через «Мои объекты» и выполните синхронизацию; при конфликте загрузите отдельную копию.');const next=upgradeProject(source);await commit(next);if(!persistent)return false;resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;renderAll(true);return true;},getProject:()=>project,canLeave,isBusy:()=>tasksWorkspace?.busy||busy||photoBusy||dirty||!!strengthWorkspace?.dirty||!!strengthWorkspace?.busy||!!measureWorkspace?.busy,notify,
+homeSync=createHomeSync({connectRemote:async source=>{if(!await canLeave())return false;if(await loadProject(source.id))throw new Error('Объект с таким ID уже есть на устройстве. Откройте его через «Мои объекты» и выполните синхронизацию; при конфликте загрузите отдельную копию.');const next=upgradeProject(source);await commit(next);if(!persistent)return false;resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;renderAll(true);return true;},getProject:()=>project,canLeave,isBusy:()=>rulerWorkspace?.busy||tasksWorkspace?.busy||busy||photoBusy||dirty||!!strengthWorkspace?.dirty||!!strengthWorkspace?.busy||!!measureWorkspace?.busy,notify,
  applyRemote:async source=>{busy=true;try{const next=upgradeProject(source);await commit(next);if(!persistent)throw new Error('Серверная версия не сохранена локально. Скачайте проект.');resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;measureWorkspace.reload();renderAll(true);}finally{busy=false;}},
  importCopy:async source=>{if(!await canLeave())return;const next=upgradeProject(source);next.id=uid();next.name+=' · с сервера';await commit(next);resetCard();strengthWorkspace.reset();activeDrawingId=next.drawings[0]?.id;renderAll(true);}
 });
